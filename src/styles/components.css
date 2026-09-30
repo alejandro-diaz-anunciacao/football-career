@@ -1,0 +1,503 @@
+/* ==========================================================================
+   Componentes reutilizables
+   ========================================================================== */
+
+/* --- Tarjeta ------------------------------------------------------------- */
+.card {
+  background: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(10px);
+}
+
+.card--flush {
+  padding: 0;
+  overflow: hidden;
+}
+
+.card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.card__title {
+  margin: 0;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+  color: var(--text-100);
+}
+
+.card__body {
+  padding: var(--space-4);
+}
+
+.card--accent {
+  border-color: rgba(34, 211, 127, 0.28);
+  box-shadow: 0 0 0 1px rgba(34, 211, 127, 0.08), var(--shadow-sm);
+}
+
+/* --- Botones ------------------------------------------------------------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 10px 16px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-600);
+  color: var(--text-100);
+  font-weight: 600;
+  font-size: 0.88rem;
+  transition: transform var(--speed) var(--ease), background var(--speed) var(--ease),
+    border-color var(--speed) var(--ease), opacity var(--speed) var(--ease);
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn--primary {
+  background: linear-gradient(140deg, var(--accent), var(--accent-strong));
+  border-color: transparent;
+  color: #04150c;
+}
+
+.btn--primary:hover:not(:disabled) {
+  border-color: transparent;
+  filter: brightness(1.06);
+}
+
+.btn--ghost {
+  background: transparent;
+}
+
+.btn--danger {
+  background: transparent;
+  border-color: rgba(255, 85, 102, 0.5);
+  color: var(--danger);
+}
+
+.btn--danger:hover:not(:disabled) {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.btn--sm {
+  padding: 6px 12px;
+  font-size: 0.8rem;
+}
+
+.btn--block {
+  width: 100%;
+}
+
+.nav-link {
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-300);
+  font-weight: 600;
+  font-size: 0.84rem;
+  transition: color var(--speed) var(--ease), background var(--speed) var(--ease);
+}
+
+.nav-link:hover {
+  color: var(--text-100);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.nav-link.is-active {
+  color: var(--text-100);
+  background: var(--accent-soft);
+  border-color: rgba(34, 211, 127, 0.3);
+}
+
+/* --- Insignias ----------------------------------------------------------- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--bg-500);
+  color: var(--text-200);
+  border: 1px solid var(--border);
+}
+
+.badge--accent {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: rgba(34, 211, 127, 0.3);
+}
+
+.badge--azure {
+  background: var(--azure-soft);
+  color: var(--azure);
+  border-color: rgba(61, 155, 255, 0.3);
+}
+
+.badge--flame {
+  background: var(--flame-soft);
+  color: var(--flame);
+  border-color: rgba(255, 138, 61, 0.3);
+}
+
+.badge--danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-color: rgba(255, 85, 102, 0.3);
+}
+
+.badge--gold {
+  background: rgba(255, 207, 77, 0.14);
+  color: var(--gold);
+  border-color: rgba(255, 207, 77, 0.32);
+}
+
+/* --- Barras de progreso -------------------------------------------------- */
+.bar {
+  position: relative;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+
+.bar__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(90deg, var(--accent-strong), var(--accent));
+  transition: width 420ms var(--ease);
+}
+
+.bar__fill--azure {
+  background: linear-gradient(90deg, #1f6fd0, var(--azure));
+}
+
+.bar__fill--flame {
+  background: linear-gradient(90deg, #d9611f, var(--flame));
+}
+
+.bar__fill--gold {
+  background: linear-gradient(90deg, #d9a021, var(--gold));
+}
+
+.bar--tall {
+  height: 12px;
+}
+
+.stat-line {
+  display: grid;
+  grid-template-columns: 92px 1fr 42px;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: 0.82rem;
+}
+
+.stat-line__value {
+  text-align: right;
+  font-family: var(--font-mono);
+  color: var(--text-100);
+}
+
+/* --- Tablas -------------------------------------------------------------- */
+.table-wrap {
+  overflow-x: auto;
+}
+
+table.data {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+table.data thead th {
+  text-align: left;
+  padding: 10px 12px;
+  color: var(--text-400);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+table.data tbody td {
+  padding: 9px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  color: var(--text-200);
+}
+
+table.data tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+table.data tbody tr.is-user {
+  background: var(--accent-soft);
+}
+
+table.data tbody tr.is-user td {
+  color: var(--text-100);
+  font-weight: 600;
+}
+
+table.data td.num,
+table.data th.num {
+  text-align: right;
+  font-family: var(--font-mono);
+}
+
+/* --- Pestañas ------------------------------------------------------------ */
+.tabs {
+  display: flex;
+  gap: var(--space-1);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.tab {
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-300);
+  font-weight: 600;
+  font-size: 0.84rem;
+  white-space: nowrap;
+}
+
+.tab:hover {
+  color: var(--text-100);
+}
+
+.tab.is-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* --- Modal --------------------------------------------------------------- */
+.modal-root:empty {
+  display: none;
+}
+
+.modal-root {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: rgba(4, 7, 14, 0.7);
+  backdrop-filter: blur(4px);
+}
+
+.modal {
+  width: min(560px, 100%);
+  max-height: 86vh;
+  overflow: auto;
+  background: var(--glass-strong);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  animation: pop 220ms var(--ease);
+}
+
+.modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.modal__body {
+  padding: var(--space-4);
+}
+
+.modal__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* --- Toasts -------------------------------------------------------------- */
+.toast-root {
+  position: fixed;
+  right: var(--space-4);
+  bottom: var(--space-4);
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  pointer-events: none;
+}
+
+.toast {
+  min-width: 240px;
+  max-width: 360px;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  background: var(--glass-strong);
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--accent);
+  color: var(--text-100);
+  font-size: 0.85rem;
+  box-shadow: var(--shadow);
+  animation: slide-in 220ms var(--ease);
+}
+
+.toast--success {
+  border-left-color: var(--accent);
+}
+
+.toast--warning {
+  border-left-color: var(--warn);
+}
+
+.toast--danger {
+  border-left-color: var(--danger);
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* --- Estado vacío -------------------------------------------------------- */
+.empty {
+  padding: var(--space-6);
+  text-align: center;
+  color: var(--text-400);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+}
+
+/* --- Notas (ratings) ----------------------------------------------------- */
+.rating-chip {
+  display: inline-grid;
+  place-items: center;
+  min-width: 44px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.85rem;
+  background: var(--bg-500);
+  color: var(--tone-ok);
+}
+
+.rating-chip--bad {
+  color: var(--tone-bad);
+  background: var(--danger-soft);
+}
+
+.rating-chip--poor {
+  color: var(--tone-poor);
+  background: var(--flame-soft);
+}
+
+.rating-chip--ok {
+  color: var(--tone-ok);
+}
+
+.rating-chip--good {
+  color: var(--tone-good);
+  background: var(--azure-soft);
+}
+
+.rating-chip--great {
+  color: var(--tone-great);
+  background: var(--accent-soft);
+}
+
+.rating-chip--elite {
+  color: var(--tone-elite);
+  background: rgba(255, 207, 77, 0.14);
+}
+
+.ovr-badge {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  font-family: var(--font-mono);
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #04150c;
+  background: linear-gradient(140deg, var(--accent), var(--accent-strong));
+}
+
+.ovr-badge--azure {
+  background: linear-gradient(140deg, #6fc0ff, #1f6fd0);
+  color: #04101f;
+}
+
+/* --- Píldoras de metadatos ---------------------------------------------- */
+.kv {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.kv__label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-400);
+}
+
+.kv__value {
+  font-weight: 700;
+  color: var(--text-100);
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

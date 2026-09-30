@@ -1,0 +1,74 @@
+/* ==========================================================================
+   Variables de diseño · tema oscuro deportivo
+   ========================================================================== */
+:root {
+  /* Paleta base */
+  --bg-900: #070b14;
+  --bg-800: #0b1220;
+  --bg-700: #121a2b;
+  --bg-600: #16203a;
+  --bg-500: #1d2a47;
+  --bg-400: #263455;
+
+  /* Cristales */
+  --glass: rgba(20, 30, 52, 0.72);
+  --glass-strong: rgba(16, 24, 42, 0.92);
+  --border: rgba(120, 150, 200, 0.16);
+  --border-strong: rgba(130, 165, 220, 0.32);
+
+  /* Texto */
+  --text-100: #f2f6ff;
+  --text-200: #c9d5ec;
+  --text-300: #93a4c4;
+  --text-400: #6b7b99;
+
+  /* Acentos */
+  --accent: #22d37f;
+  --accent-soft: rgba(34, 211, 127, 0.14);
+  --accent-strong: #14b86a;
+  --flame: #ff8a3d;
+  --flame-soft: rgba(255, 138, 61, 0.14);
+  --azure: #3d9bff;
+  --azure-soft: rgba(61, 155, 255, 0.14);
+  --gold: #ffcf4d;
+  --danger: #ff5566;
+  --danger-soft: rgba(255, 85, 102, 0.14);
+  --warn: #ffb03a;
+
+  /* Semánticos de nota */
+  --tone-bad: #ff5566;
+  --tone-poor: #ff8a3d;
+  --tone-ok: #d9dee9;
+  --tone-good: #5ad1ff;
+  --tone-great: #22d37f;
+  --tone-elite: #ffcf4d;
+
+  /* Tipografía */
+  --font-display: 'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-body: 'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+
+  /* Espaciado */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* Radios */
+  --radius-sm: 8px;
+  --radius: 14px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+
+  /* Sombras */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  --shadow-glow: 0 0 0 1px var(--border-strong), 0 18px 48px rgba(0, 0, 0, 0.5);
+
+  /* Transiciones */
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --speed: 180ms;
+}
