@@ -114,8 +114,8 @@ export const CONFIG = {
   MARKET: {
     /** OVR mínimo para recibir ofertas de un club con reputación dada. */
     REPUTATION_TOLERANCE: 7,
-    /** Número máximo de ofertas de traspaso por temporada. */
-    MAX_OFFERS: 3,
+    /** Número máximo de ofertas por ventana. */
+    MAX_OFFERS: 4,
     /** Número máximo de ofertas de cesión. */
     MAX_LOAN_OFFERS: 2,
     /** Salario mínimo en miles de € semanales. */
@@ -135,7 +135,27 @@ export const CONFIG = {
     /** Edad máxima para solicitar una cesión por falta de minutos. */
     LOAN_MAX_AGE: 24,
     /** Nº máximo de ofertas activas que puede acumular el jugador. */
-    MAX_ACTIVE_OFFERS: 6,
+    MAX_ACTIVE_OFFERS: 8,
+    /** Rendimiento (0-100) a partir del cual hay al menos una oferta. */
+    GOOD_PERFORMANCE: 60,
+  },
+
+  /** Calendario de la temporada y ventanas de fichajes. */
+  CALENDAR: {
+    /** Año en que arranca la temporada 1. */
+    START_YEAR: 2026,
+    START_MONTH: 8,
+    START_DAY: 16,
+    /** Días entre jornadas de liga. */
+    ROUND_INTERVAL_DAYS: 7,
+    /** Jornada tras la cual se abre el parón de invierno. */
+    WINTER_BREAK_ROUND: 17,
+    /** Duración del parón de invierno, en días. */
+    WINTER_BREAK_DAYS: 21,
+    /** Ventana de fichajes de verano (jornadas, ambas inclusive). */
+    SUMMER_WINDOW: { FROM_ROUND: 1, TO_ROUND: 3 },
+    /** Ventana de fichajes de invierno (jornadas, ambas inclusive). */
+    WINTER_WINDOW: { FROM_ROUND: 18, TO_ROUND: 20 },
   },
 
   /** Carrera. */

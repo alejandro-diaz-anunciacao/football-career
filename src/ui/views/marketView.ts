@@ -3,6 +3,7 @@ import { interestedTeams } from '../../engine/marketEngine';
 import { SquadRole } from '../../models';
 import { careerService } from '../../services/careerService';
 import { notify } from '../../services/eventBus';
+import { formatGameDate } from '../../utils/date';
 import { el, fmt, fmtMoney, fmtWage } from '../dom';
 import { badge, card, emptyState, kv } from '../components/card';
 import type { ViewContext, ViewFactory } from './types';
@@ -26,7 +27,28 @@ export const marketView: ViewFactory = (ctx: ViewContext) => {
   const currentTeam = careerService.currentTeam();
 
   const role = careerService.squadRole();
-  const canRequestLoan = !player.loan && role !== SquadRole.Starter;
+  const open = careerService.windowOpen();
+  const activeWindow = careerService.transferWindow();
+  const nextWin = careerService.nextWindow();
+  const canRequestLoan = open && !player.loan && role !== SquadRole.Starter;
+
+  const windowCard = card({
+    title: open ? '🟢 Mercado abierto' : '🔒 Mercado cerrado',
+    subtitle: open
+      ? `Ventana de ${activeWindow === 'winter' ? 'invierno' : 'verano'}`
+      : nextWin
+        ? `Abre el ${formatGameDate(nextWin.date)} (${nextWin.window === 'winter' ? 'invierno' : 'verano'})`
+        : '',
+    accent: open,
+    body: [
+      el('p', {
+        class: 'text-muted',
+        text: open
+          ? 'Puedes aceptar ofertas, cerrar cesiones y cambiar de club hasta que se cierre la ventana.'
+          : 'Solo puedes cambiar de club durante las ventanas de verano e invierno. Las ofertas actuales podrás aceptarlas cuando abra la próxima.',
+      }),
+    ],
+  });
 
   const offersCard = card({
     title: '💼 Ofertas recibidas',
@@ -80,6 +102,7 @@ export const marketView: ViewFactory = (ctx: ViewContext) => {
                   el('button', {
                     class: 'btn btn--primary btn--sm',
                     text: isLoan ? '✔ Aceptar cesión' : '✔ Aceptar',
+                    disabled: !open,
                     on: {
                       click: () => {
                         careerService.acceptOffer(offer.id);
@@ -216,10 +239,14 @@ export const marketView: ViewFactory = (ctx: ViewContext) => {
         {},
         el('span', { class: 'page-head__eyebrow', text: 'Mercado de fichajes' }),
         el('h1', { text: 'Ventana de transferencias' }),
-        el('p', { class: 'text-muted', text: `Temporada ${state.season} · ${state.offers.length} oferta(s) activas` }),
+        el('p', {
+          class: 'text-muted',
+          text: `Temporada ${state.season} · ${formatGameDate(state.calendar)} · ${state.offers.length} oferta(s) activas`,
+        }),
       ),
       el('button', { class: 'btn btn--ghost', text: 'Volver al vestuario', on: { click: () => ctx.navigate('dashboard') } }),
     ),
+    windowCard,
     offersCard,
     infoCard,
     interestCard,

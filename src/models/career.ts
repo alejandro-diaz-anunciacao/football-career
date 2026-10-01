@@ -1,5 +1,8 @@
+import type { GameDate } from '../utils/date';
 import { MessageKind, SeasonPhase, SquadRole } from './enums';
 import type { League } from './league';
+
+export type { GameDate };
 import type { MatchResult } from './match';
 import type { Player } from './player';
 import type { Team } from './team';
@@ -90,6 +93,8 @@ export interface CareerState {
   phase: SeasonPhase;
   /** Jornada global en curso (1-indexed). */
   currentRound: number;
+  /** Fecha del calendario correspondiente a la jornada en curso. */
+  calendar: GameDate;
   player: Player;
   teamId: string;
   leagues: Record<string, League>;

@@ -157,6 +157,13 @@ rotación) y no superan un salto de nivel razonable para tu edad; solo de forma 
 aparece una oferta ambiciosa de un club mayor. Si no tienes minutos, puedes **pedir una
 cesión** a un club donde serías titular y regresar a tu equipo al final de la temporada.
 
+**Calendario y ventanas de fichajes.** La temporada arranca a mediados de agosto y avanza
+jornada a jornada con **fecha real** (parón de invierno incluido). Los traspasos y cesiones
+solo se cierran durante las **ventanas de verano e invierno**; el resto del año el mercado
+está cerrado. El número de ofertas **varía cada temporada** (de 0 a 4 según rendimiento,
+nivel, edad y azar): un buen curso garantiza al menos una, pero hay años en los que no llega
+ninguna.
+
 **Persistencia.** Todo el estado (`CareerState`) se serializa en `localStorage` bajo una
 clave versionada e incluye el estado del RNG, de modo que la partida guardada es
 reproducible.

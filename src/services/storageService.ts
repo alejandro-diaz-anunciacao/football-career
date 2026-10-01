@@ -2,6 +2,7 @@ import { CONFIG } from '../data/config';
 import { SquadRole, emptySeasonGrowth } from '../models';
 import type { CareerState, Fixture, League, Player, Position } from '../models';
 import { DEFAULT_FOCUS } from '../engine/progressionEngine';
+import { roundDate } from '../engine/calendar';
 
 /**
  * Fila compacta de un partido: `[jornada, local, visitante, jugado, gf, gc]`.
@@ -351,6 +352,9 @@ export const storageService = {
       player.lastGrowth = player.lastGrowth ?? null;
       player.loan = player.loan ?? null;
     }
+
+    // Calendario: en partidas antiguas se deriva de la jornada en curso.
+    migrated.calendar = migrated.calendar ?? roundDate(migrated.season, migrated.currentRound);
 
     migrated.version = CONFIG.CAREER.SAVE_VERSION;
     return migrated;

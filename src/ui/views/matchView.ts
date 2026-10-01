@@ -3,6 +3,7 @@ import type { MatchResult } from '../../models';
 import type { MatchSimulation } from '../../engine/matchEngine';
 import { careerService } from '../../services/careerService';
 import { notify } from '../../services/eventBus';
+import { formatGameDate } from '../../utils/date';
 import { el, fmt, replace } from '../dom';
 import { badge, card, emptyState, kv } from '../components/card';
 import { ratingChip, statBar } from '../components/statBar';
@@ -341,7 +342,7 @@ export const matchView: ViewFactory = (ctx: ViewContext) => {
   const buildPrematchCard = (): HTMLElement =>
     card({
     title: `Jornada ${state.currentRound} · ${league.name}`,
-    subtitle: `${homeTeam.name} vs ${awayTeam.name}`,
+    subtitle: `${homeTeam.name} vs ${awayTeam.name} · ${formatGameDate(state.calendar)}`,
     accent: true,
     body: [
       el(

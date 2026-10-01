@@ -133,47 +133,68 @@ export function generateLoanOffers(
   return offers.sort((a, b) => b.wage - a.wage);
 }
 
-/** Genera las ofertas disponibles al cierre de temporada (traspasos y cesiones). */
+/**
+ * Cuántas ofertas habrá en una ventana (0-`MAX_OFFERS`). Depende del
+ * rendimiento, de lo que destaca el jugador para su edad y de la suerte, así
+ * que hay temporadas con muchas, pocas o ninguna.
+ */
+function desiredOffers(player: Player, performance: number, rng: Random): number {
+  const m = CONFIG.MARKET;
+  const perf = clamp(performance / 100, 0, 1);
+  const ovrEdge = clamp((player.ovr - 45) / 30, 0, 1);
+  const appetite = perf * 0.55 + ovrEdge * 0.35 + rng.next() * 0.45;
+  return clamp(Math.round(appetite * m.MAX_OFFERS), 0, m.MAX_OFFERS);
+}
+
+/**
+ * Genera las ofertas de una ventana de fichajes. `performance` (0-100) modula
+ * cuántas llegan; con buen rendimiento siempre hay al menos una.
+ */
 export function generateOffers(
   teams: Record<string, Team>,
   leagues: Record<string, League>,
   player: Player,
   rng: Random,
+  performance = 0,
 ): TransferOffer[] {
-  const candidates = playableCandidates(teams, player);
   const offers: TransferOffer[] = [];
 
-  if (candidates.length > 0) {
-    const target = player.ovr + 1;
+  let target = desiredOffers(player, performance, rng);
+  if (performance >= CONFIG.MARKET.GOOD_PERFORMANCE && target === 0) target = 1;
+
+  if (target > 0) {
+    const candidates = playableCandidates(teams, player);
+    const reference = player.ovr + 1;
     const pool = candidates.map((candidate) => ({
       value: candidate,
-      weight: 1 / (1 + Math.abs(candidate.team.overall - target) * 0.25),
+      weight: 1 / (1 + Math.abs(candidate.team.overall - reference) * 0.25),
     }));
 
-    let attempts = 0;
-    while (pool.length > 0 && offers.length < CONFIG.MARKET.MAX_OFFERS && attempts < 40) {
-      attempts += 1;
+    while (pool.length > 0 && offers.length < target) {
       const pick = rng.weighted(pool);
-      pool.splice(pool.findIndex((entry) => entry.value === pick), 1);
-
-      const affinity = 1 / (1 + Math.abs(pick.team.overall - target) * 0.15);
-      if (!rng.chance(clamp(CONFIG.MARKET.OFFER_CHANCE * affinity, 0.08, 0.92))) continue;
-
+      const index = pool.findIndex((entry) => entry.value === pick);
+      if (index >= 0) pool.splice(index, 1);
       offers.push(makeOffer(pick.team, leagues[pick.team.leagueId], player, rng, 'transfer', pick.projection));
     }
-  }
 
-  // Oferta ambiciosa poco frecuente: un club grande donde competirás por el puesto.
-  if (offers.length < CONFIG.MARKET.MAX_OFFERS && rng.chance(CONFIG.MARKET.WILDCARD_CHANCE)) {
-    const wildcard = pickWildcard(teams, player, rng);
-    if (wildcard) {
+    // Oferta ambiciosa poco frecuente: un club grande donde competirás por el puesto.
+    if (offers.length < target && rng.chance(CONFIG.MARKET.WILDCARD_CHANCE)) {
+      const wildcard = pickWildcard(teams, player, rng);
+      if (wildcard) {
+        offers.push(
+          makeOffer(wildcard.team, leagues[wildcard.team.leagueId], player, rng, 'transfer', wildcard.projection),
+        );
+      }
+    }
+
+    // Cesiones para completar la ventana (jugadores con pocos minutos).
+    const remaining = Math.max(0, target - offers.length);
+    if (remaining > 0) {
       offers.push(
-        makeOffer(wildcard.team, leagues[wildcard.team.leagueId], player, rng, 'transfer', wildcard.projection),
+        ...generateLoanOffers(teams, leagues, player, rng, Math.min(remaining, CONFIG.MARKET.MAX_LOAN_OFFERS)),
       );
     }
   }
-
-  offers.push(...generateLoanOffers(teams, leagues, player, rng, CONFIG.MARKET.MAX_LOAN_OFFERS));
 
   return offers.sort((a, b) => b.wage - a.wage);
 }

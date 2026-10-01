@@ -1,4 +1,6 @@
 import type { CareerState, SquadRole } from '../../models';
+import { windowForRound } from '../../engine/calendar';
+import { formatGameDate } from '../../utils/date';
 import { el } from '../dom';
 import { badge } from './card';
 
@@ -53,6 +55,8 @@ export function renderHeader(options: HeaderOptions): HTMLElement {
     ),
   );
 
+  const openWindow = state ? windowForRound(state.currentRound) : null;
+
   const meta = el(
     'div',
     { class: 'header-meta' },
@@ -63,7 +67,8 @@ export function renderHeader(options: HeaderOptions): HTMLElement {
           badge(`${state.player.position}`, 'accent'),
           badge(`OVR ${state.player.ovr}`, 'azure'),
           role ? badge(role, role === 'Titular' ? 'accent' : role === 'Suplente' ? 'flame' : '') : null,
-          el('span', { class: 'text-dim', text: `T${state.season}` }),
+          openWindow ? badge('Mercado abierto', 'gold') : null,
+          el('span', { class: 'text-dim', text: `T${state.season} · ${formatGameDate(state.calendar)}` }),
         )
       : el('span', { class: 'text-dim', text: 'Sin partida activa' }),
   );

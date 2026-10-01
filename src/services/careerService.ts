@@ -32,16 +32,19 @@ import { currentStandings, fixtureForTeam, fixturesOfRound, positionOf, processC
 import { MatchSimulation, marketValue, simulateQuickMatch, suggestedWage } from '../engine/matchEngine';
 import { generateLoanOffers, generateOffers, chooseDebutTeam } from '../engine/marketEngine';
 import { projectRole } from '../engine/roleEngine';
+import { roundDate, windowForRound, type TransferWindow } from '../engine/calendar';
 import {
   agePlayer,
   applyDevelopmentTick,
   applySeasonGrowth,
   developmentFocusOptions,
   mergeSeasonIntoCareer,
+  performanceScore,
   planSeasonGrowth,
   recoverWeekly,
   updateForm,
 } from '../engine/progressionEngine';
+import { formatGameDate, type GameDate } from '../utils/date';
 import { createPlayer, type PlayerCreationInput } from './playerFactory';
 import { getSquad } from './squadService';
 import { storageService, type SaveSlot } from './storageService';
@@ -358,6 +361,7 @@ function buildCareer(
     season: 1,
     phase: SeasonPhase.League,
     currentRound: 1,
+    calendar: roundDate(1, 1),
     player,
     teamId: debutTeamId,
     leagues: world.leagues,
@@ -501,6 +505,53 @@ function simulateRestOfRound(): number {
   return goals;
 }
 
+/** Ventana de fichajes activa según la jornada en curso (null = cerrada). */
+function transferWindow(): TransferWindow | null {
+  const current = state;
+  if (!current) return null;
+  return windowForRound(current.currentRound);
+}
+
+/** ¿Está abierto el mercado de fichajes? */
+function windowOpen(): boolean {
+  return transferWindow() !== null;
+}
+
+/** Próxima ventana de fichajes y su fecha de apertura. */
+function nextWindow(): { window: TransferWindow; date: GameDate } | null {
+  const current = state;
+  if (!current || transferWindow()) return null;
+
+  const winterStart = CONFIG.CALENDAR.WINTER_WINDOW.FROM_ROUND;
+  if (current.currentRound < winterStart) {
+    return { window: 'winter', date: roundDate(current.season, winterStart) };
+  }
+  return { window: 'summer', date: roundDate(current.season + 1, CONFIG.CALENDAR.SUMMER_WINDOW.FROM_ROUND) };
+}
+
+/** Abre una ventana: genera sus ofertas y avisa al jugador. */
+function openWindow(window: TransferWindow): void {
+  const current = requireState();
+  const player = current.player;
+  const range = window === 'winter' ? CONFIG.CALENDAR.WINTER_WINDOW : CONFIG.CALENDAR.SUMMER_WINDOW;
+  const closeDate = roundDate(current.season, range.TO_ROUND);
+  const label = window === 'winter' ? 'invierno' : 'verano';
+
+  const offers = generateOffers(current.teams, current.leagues, player, rng, performanceScore(player.seasonStats));
+  current.offers = offers;
+
+  pushMessage(
+    MessageKind.Offer,
+    `Se abre el mercado de ${label}`,
+    offers.length > 0
+      ? `${offers.length} club(es) han presentado una oferta. Tienes hasta el ${formatGameDate(closeDate)} para decidir.`
+      : `Ningún club ha presentado ofertas en esta ventana.`,
+    current.season,
+    current.currentRound,
+    offers.map((offer) => ({ id: offer.id, label: `Aceptar ${offer.teamName}`, kind: 'accept' as const })),
+  );
+}
+
 /** Cierra la jornada en curso y avanza el calendario. */
 function advanceRound(played: boolean, won: boolean): void {
   const current = requireState();
@@ -525,8 +576,17 @@ function advanceRound(played: boolean, won: boolean): void {
 
   current.currentRound += 1;
 
+  const lastRound = league?.totalRounds ?? current.currentRound;
+  const calendarRound = Math.min(current.currentRound, lastRound);
+  current.calendar = roundDate(current.season, calendarRound);
+
   if (league && current.currentRound > league.totalRounds) {
     current.phase = SeasonPhase.Offseason;
+  }
+
+  // Apertura del mercado de invierno: llegan ofertas de mitad de temporada.
+  if (current.currentRound === CONFIG.CALENDAR.WINTER_WINDOW.FROM_ROUND) {
+    openWindow('winter');
   }
 }
 
@@ -733,8 +793,8 @@ function finishSeason(): SeasonSummary {
     player.loan = null;
   }
 
-  // Mercado y contrato.
-  const offers = generateOffers(current.teams, current.leagues, player, rng);
+  // Mercado y contrato: las ofertas de verano se deciden con el rendimiento del curso.
+  const offers = generateOffers(current.teams, current.leagues, player, rng, growth.performanceScore);
   current.offers = offers;
   player.contract.years -= 1;
   if (player.contract.years <= 0) {
@@ -772,6 +832,7 @@ function finishSeason(): SeasonSummary {
   current.season += 1;
   current.seasonsPlayed += 1;
   current.currentRound = 1;
+  current.calendar = roundDate(current.season, 1);
   current.phase = SeasonPhase.League;
   current.lastMatch = null;
   current.recentResults = [];
@@ -802,6 +863,10 @@ function finishSeason(): SeasonSummary {
 /** Acepta una oferta de fichaje o de cesión y cambia al jugador de club. */
 function acceptOffer(offerId: string): boolean {
   const current = requireState();
+  if (!windowOpen()) {
+    notify('El mercado está cerrado: solo puedes cambiar de club en las ventanas de verano e invierno.', 'warning');
+    return false;
+  }
   const offer = current.offers.find((item) => item.id === offerId);
   if (!offer) return false;
   const team = current.teams[offer.teamId];
@@ -870,6 +935,11 @@ function acceptOffer(offerId: string): boolean {
 function requestLoan(): number {
   const current = requireState();
   const player = current.player;
+
+  if (!windowOpen()) {
+    notify('El mercado está cerrado: las cesiones solo se cierran en las ventanas de fichajes.', 'warning');
+    return 0;
+  }
 
   if (player.loan) {
     notify('Ya estás cedido esta temporada.', 'warning');
@@ -991,6 +1061,9 @@ export const careerService = {
   nextFixture,
   nextOpponent,
   squadRole,
+  transferWindow,
+  windowOpen,
+  nextWindow,
   createUserMatch,
   commitUserMatch,
   simulateUserMatchQuick,

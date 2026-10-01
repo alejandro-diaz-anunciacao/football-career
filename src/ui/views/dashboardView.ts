@@ -11,6 +11,7 @@ import {
 import type { AttributeKey, CareerState, MatchResult, Team } from '../../models';
 import { previewMatch } from '../../engine/matchEngine';
 import { careerService } from '../../services/careerService';
+import { formatGameDate } from '../../utils/date';
 import { el, fmt, fmtMoney, fmtRelativeTime, fmtWage } from '../dom';
 import { card, badge, emptyState, kv } from '../components/card';
 import { ovrBadge, ratingChip, statBar } from '../components/statBar';
@@ -80,7 +81,7 @@ function nextMatchCard(state: CareerState, ctx: ViewContext): HTMLElement {
 
   return card({
     title: `Jornada ${state.currentRound} · ${league.name}`,
-    subtitle: isHome ? 'Juegas en casa' : 'Juegas a domicilio',
+    subtitle: `${isHome ? 'Juegas en casa' : 'Juegas a domicilio'} · ${formatGameDate(state.calendar)}`,
     accent: true,
     body: [
       el(
@@ -214,6 +215,7 @@ export const dashboardView: ViewFactory = (ctx: ViewContext) => {
               badge(role, role === 'Titular' ? 'accent' : role === 'Suplente' ? 'flame' : ''),
               player.injuryWeeks > 0 ? badge(`Baja ${player.injuryWeeks} sem`, 'danger') : null,
               player.loan ? badge('Cedido', 'flame') : null,
+              careerService.windowOpen() ? badge('Mercado abierto', 'gold') : null,
               badge(potentialHint(player), 'azure'),
             ),
           ),
@@ -560,7 +562,10 @@ export const dashboardView: ViewFactory = (ctx: ViewContext) => {
       el(
         'div',
         {},
-        el('span', { class: 'page-head__eyebrow', text: `Temporada ${state.season} · Jornada ${state.currentRound}` }),
+        el('span', {
+          class: 'page-head__eyebrow',
+          text: `Temporada ${state.season} · Jornada ${state.currentRound} · ${formatGameDate(state.calendar)}`,
+        }),
         el('h1', { text: 'Vestuario' }),
         el('p', { class: 'text-muted', text: `${team?.name ?? 'Sin club'} · ${league?.name ?? 'Sin liga'}` }),
       ),

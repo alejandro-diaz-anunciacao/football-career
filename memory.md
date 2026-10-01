@@ -137,7 +137,7 @@ acordarlo.
   - ⚠️ Si cambias la forma de `League` o `Fixture`, actualiza **ambas** funciones.
 - **Migración de campos:** `storageService.migrate(state)` rellena campos nuevos
   (`recentResults`, `offers`, `inbox`, `trophies`, `history`, `trainingFocus`,
-  `seasonGrowth`, `lastGrowth`, `player.loan`) y normaliza
+  `seasonGrowth`, `lastGrowth`, `player.loan`, `calendar`) y normaliza
   `TransferOffer.kind`/`projectedRole`; además actualiza `version`. Al añadir un
   campo a `Player` o `CareerState`, **añádelo también aquí**.
 - **Robustez:** en Node sin shim de `localStorage`, `storageService` traga errores
@@ -179,6 +179,16 @@ acordarlo.
   `{ seed, options }` (4 clubes jugables, con rol real). `createCareer` /
   `restartSlot` aceptan `{ seed, teamId }`; al reutilizar la semilla, lo mostrado
   coincide con el mundo creado.
+- **Calendario:** `CareerState.calendar` es la fecha de la jornada en curso;
+  `engine/calendar.roundDate(season, round)` la calcula (arranque 16 ago, parón de
+  invierno). Se actualiza en `advanceRound` y al resetear en `finishSeason`.
+- **Ventanas de fichajes:** `windowForRound(currentRound)` decide si el mercado
+  está abierto. `acceptOffer`/`requestLoan` lo comprueban y la UI deshabilita el
+  botón fuera de ventana. Las ofertas se generan **al abrir** cada ventana
+  (`openWindow` en invierno, `finishSeason` en verano).
+- **Ofertas variables:** `generateOffers(..., performance)` calcula 0-`MAX_OFFERS`
+  según rendimiento, OVR y azar; con `performance >= GOOD_PERFORMANCE` garantiza
+  al menos una. Puede haber ventanas sin ninguna oferta.
 
 ## 7. Modelo de dominio (resumen)
 
@@ -192,8 +202,8 @@ acordarlo.
 - **`League`/`Fixture`/`StandingRow`**: `sortStandings` aplica puntos → diferencia
   de goles → goles a favor → id. `tier` 1 = máxima categoría.
 - **`CareerState`**: todo el estado serializable (seed, rngState, season, phase,
-  currentRound, player, teamId, leagues, teams, history, trophies, inbox, offers,
-  lastMatch, recentResults, seasonsPlayed, previousFinish).
+  currentRound, **calendar** (`GameDate`), player, teamId, leagues, teams, history,
+  trophies, inbox, offers, lastMatch, recentResults, seasonsPlayed, previousFinish).
 - **Enums string**: `Position`, `Foot`, `Continent`, `SquadRole`, `MatchEventType`,
   `SeasonPhase`, `MessageKind`, `TacticalApproach`. Tipos: `MatchOutcome`, `TeamSide`.
 
@@ -205,6 +215,7 @@ acordarlo.
 | `matchEngine.ts` | `MatchSimulation` (plan completo + revelado con `step()`), `selectStartingEleven` (4-4-2), `simulateQuickMatch`, `previewMatch`, `marketValue`, `suggestedWage`. |
 | `ratingEngine.ts` | `computeRating` (1.0-10.0 ponderada por posición y resultado), `ratingLabel`, `ratingTone`. |
 | `roleEngine.ts` | `projectRole(player, team, squad?)`: rol (`Starter`/`Bench`/`NotCalled`) y minutos estimados. Banda de rotación amplia + bonus de promesa. **Fuente única del rol** (la usan `careerService` con plantilla real y el mercado con la media del club). |
+| `calendar.ts` | `roundDate(season, round)` y `windowForRound(round)`: fechas reales de cada jornada y ventana de fichajes activa. |
 | `progressionEngine.ts` | Plan de temporada, avances parciales (`applyDevelopmentTick`), cierre (`applySeasonGrowth`), `agePlayer`, `recoverWeekly`, `updateForm`, `mergeSeasonIntoCareer`. |
 | `leagueManager.ts` | Calendario (círculo), clasificación, ascensos/descensos (`processPromotionRelegation`, `processCountryPyramid`). |
 | `marketEngine.ts` | `interestedTeams`, `generateOffers`, `chooseDebutTeam`. |
@@ -293,11 +304,11 @@ src/
 ├── main.ts                     # importa main.css + bootstrap()
 ├── models/                     # enums, player, team, league, match, career, index
 ├── data/                       # config, continents, names, leagues, worldBuilder, index
-├── engine/                     # poisson, matchEngine, ratingEngine, roleEngine,
+├── engine/                     # poisson, matchEngine, ratingEngine, roleEngine, calendar,
 │                               # progressionEngine, leagueManager, marketEngine
 ├── services/                   # careerService (fachada), storageService, squadService,
 │                               # playerFactory, randomService, nameService, idService, eventBus
-├── utils/                      # math, random
+├── utils/                      # math, random, date
 ├── styles/                     # variables, base, layout, components, views, main
 └── ui/
     ├── app.ts, router.ts, dom.ts
