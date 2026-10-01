@@ -342,7 +342,9 @@ export const matchView: ViewFactory = (ctx: ViewContext) => {
 
   const competitionName = competition?.name ?? league.name;
   const competitionTitle =
-    competition?.kind === 'cup' ? `${competitionName} · Ronda ${fixture.round}` : `Jornada ${state.currentRound} · ${competitionName}`;
+    competition?.kind === 'league'
+      ? `Jornada ${state.currentRound} · ${competitionName}`
+      : `${competitionName} · Ronda ${fixture.round}`;
 
   const buildPrematchCard = (): HTMLElement =>
     card({

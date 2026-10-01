@@ -164,6 +164,18 @@ Italia, desde octavos en Brasil…) y **final a partido único en sede neutral**
 se juegan entre semana, en **tandas propias**, así que conviven con la liga en la misma
 semana.
 
+**Competiciones continentales.** Cada continente tiene una competición principal y otra
+secundaria, con los **clasificados** salidos de los puestos de cada liga y del campeón de
+copa, previas y **repescas** entre ambas:
+
+- **Europa** — Champions y Europa League con **fase de liga** (8 partidos, top-8 a octavos
+  y 9-24 al *playoff*); los perdedores de la previa de la Champions caen a la Europa League.
+- **Sudamérica** — Libertadores y Sudamericana (grupos + eliminatorias), con los terceros de
+  la Libertadores cayendo a la Sudamericana.
+- **Norteamérica** — Concacaf Champions Cup (eliminatoria directa) y Leagues Cup (grupos).
+- **Asia** — AFC Champions League Elite (fase de liga por regiones) y Two (grupos).
+- **África** — CAF Champions y Confederation (grupos, con la **final a ida y vuelta**).
+
 **Calendario y ventanas de fichajes.** La temporada arranca a mediados de agosto y avanza
 jornada a jornada con **fecha real** (parón de invierno incluido). Los traspasos y cesiones
 solo se cierran durante las **ventanas de verano e invierno**; el resto del año el mercado

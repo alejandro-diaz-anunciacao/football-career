@@ -138,9 +138,10 @@ acordarlo.
 - **Migración de campos:** `storageService.migrate(state)` rellena campos nuevos
   (`recentResults`, `offers`, `inbox`, `trophies`, `history`, `trainingFocus`,
   `seasonGrowth`, `lastGrowth`, `player.loan`, `calendar`, `competitions`,
-  `tick`) y normaliza `TransferOffer.kind`/`projectedRole`; además actualiza
-  `version`. Al añadir un campo a `Player` o `CareerState`, **añádelo también aquí**.
-  `tick` se deriva de `currentRound` en partidas antiguas.
+  `tick`) y normaliza `TransferOffer.kind`/`projectedRole` y los campos de las
+  `Competition` (`format`/`stage`/`tier`/`mainEntrants`); además actualiza `version`.
+  Al añadir un campo a `Player` o `CareerState`, **añádelo también aquí**. `tick` se
+  deriva de `currentRound` en partidas antiguas.
 - **Robustez:** en Node sin shim de `localStorage`, `storageService` traga errores
   y `loadSlot()` devuelve `null` en silencio. Para probar persistencia, define un
   shim primero.
@@ -194,10 +195,24 @@ acordarlo.
   (jornadas de liga + tandas de copa entre semana). Un avance = una tanda; el
   usuario juega como máximo un partido por tanda. `currentRound` solo avanza en
   las tandas de liga (lo usan ventanas y desarrollo).
-- **Copas:** `CareerState.competitions` guarda una `Competition` por país con
-  todos sus equipos. `simulateCupTick` juega la pierna en curso y avanza el cuadro;
-  `applyUserMatch` aplica el resultado a la liga o copa según `result.competitionId`.
-  Si el usuario no juega una tanda de copa (eliminado), `skipToNextMatch` avanza.
+- **Copas y continentales:** `CareerState.competitions` guarda las `Competition` de
+  copa (por país) y continental (por continente). `simulateCupTick` juega la pierna en
+  curso (KO); `simulateGroupRound` la jornada de grupos; `applyUserMatch` aplica a liga,
+  grupo (tabla) o KO según `result.competitionId` y la fase. Si el usuario no juega la
+  tanda, `skipToNextMatch` avanza.
+- **Continentales:** `buildSeasonCompetitions` crea copas + continentales al empezar
+  temporada. En la primera se clasifica por nivel; después, por puesto de liga y campeón
+  de copa, sin que un club juegue dos competiciones del continente (salvo `shareTeams`,
+  como la Leagues Cup). Los cinco continentes están implementados:
+  - **Previa** (`stage: 'qualifying'`): cuadro a doble partido; ganadores → cuadro principal,
+    perdedores → secundaria.
+  - **Fase de liga** (`stage: 'league'`): tabla única (8 jornadas); top-`leagueDirect` a
+    octavos y `leaguePlayoff` al playoff.
+  - **Repescas:** las de la previa (UEFA/AFC/CAF) construyen la secundaria en diferido
+    (`stage: 'pending'`); las de grupos (CONMEBOL) entran al KO de la secundaria vía
+    `pendingEntrants`. Se procesan por tandas ordenadas por `tier` (`simulateContinentalTick`).
+  - **Finales:** a partido único salvo `twoLeggedFinal` (CAF). `knockoutFirstTwoLegged`
+    marca las primeras rondas a doble partido (AFC Elite, Concacaf).
 
 ## 7. Modelo de dominio (resumen)
 
@@ -210,9 +225,12 @@ acordarlo.
   `teamOverall()` pondera 0.34/0.33/0.33.
 - **`League`/`Fixture`/`StandingRow`**: `sortStandings` aplica puntos → diferencia
   de goles → goles a favor → id. `tier` 1 = máxima categoría.
-- **`Competition`**: copa (y futuras continentales). Guarda `ties` (`KnockoutTie`
-  con sus piernas `Fixture`), `round`/`leg`, `totalRounds`, `championId`,
-  `pendingByes` y `twoLeggedRounds`.
+- **`Competition`**: copa o continental. `kind`, `format` (`knockout`/`groups`/`league`),
+  `stage` (`qualifying`/`pending`/`groups`/`league`/`knockout`/`done`),
+  `continent?`/`countryCode?`, `tier`, `ties` (`KnockoutTie` con sus piernas `Fixture`),
+  `groups` (`CompetitionGroup` con `standings`+`fixtures`), `round`/`leg`, `totalRounds`,
+  `championId`, `pendingByes`, `twoLeggedRounds`, `knockoutFirstTwoLegged`,
+  `twoLeggedFinal`, `pendingEntrants`, `mainEntrants`.
 - **`CareerState`**: todo el estado serializable (seed, rngState, season, phase,
   currentRound, **calendar** (`GameDate`), **tick**, player, teamId, leagues,
   teams, **competitions**, history, trophies, inbox, offers, lastMatch,
@@ -230,7 +248,9 @@ acordarlo.
 | `roleEngine.ts` | `projectRole(player, team, squad?)`: rol (`Starter`/`Bench`/`NotCalled`) y minutos estimados. Banda de rotación amplia + bonus de promesa. **Fuente única del rol** (la usan `careerService` con plantilla real y el mercado con la media del club). |
 | `calendar.ts` | `roundDate(season, round)` y `windowForRound(round)`: fechas reales de cada jornada y ventana de fichajes activa. |
 | `schedule.ts` | `buildSeasonSchedule(season)`: lista de tandas (liga y copa entre semana) con su fecha. |
-| `cupEngine.ts` | `buildCup`/`buildCups`, `simulateCupTick`, `cupLegForTeam`: cuadro de copa (previa o exentos), ida/vuelta, resolución por agregado/penaltis. |
+| `cupEngine.ts` | `buildCup`/`buildCups`, `simulateCupTick`, `cupLegForTeam`, `buildBracketRound`, `countBracketRounds`: cuadro de eliminatoria (previa o exentos), ida/vuelta, resolución por agregado/penaltis. |
+| `groupEngine.ts` | `buildGroups` (bombos, cualquier tamaño de grupo), `buildLeaguePhase` (tabla única), `simulateGroupRound`, `groupQualifiers`, `groupRange`, `startKnockout`: grupos o fase de liga y salto a la eliminatoria. |
+| `continentalEngine.ts` | `buildContinentalCompetitions`, `buildMainStage`: clasificados por puesto de liga y campeón de copa, con previa (`qualifying`), secundarias en espera (`pending`) y reparto por continente. |
 | `progressionEngine.ts` | Plan de temporada, avances parciales (`applyDevelopmentTick`), cierre (`applySeasonGrowth`), `agePlayer`, `recoverWeekly`, `updateForm`, `mergeSeasonIntoCareer`. |
 | `leagueManager.ts` | Calendario (círculo), clasificación, ascensos/descensos (`processPromotionRelegation`, `processCountryPyramid`). |
 | `marketEngine.ts` | `interestedTeams`, `generateOffers`, `chooseDebutTeam`. |
@@ -320,9 +340,10 @@ google-chrome --headless=new --disable-gpu --no-sandbox --remote-debugging-port=
 src/
 ├── main.ts                     # importa main.css + bootstrap()
 ├── models/                     # enums, player, team, league, competition, match, career, index
-├── data/                       # config, continents, names, leagues, cups, worldBuilder, index
+├── data/                       # config, continents, names, leagues, cups, continental, worldBuilder, index
 ├── engine/                     # poisson, matchEngine, ratingEngine, roleEngine, calendar,
-│                               # schedule, cupEngine, progressionEngine, leagueManager, marketEngine
+│                               # schedule, cupEngine, groupEngine, continentalEngine,
+│                               # progressionEngine, leagueManager, marketEngine
 ├── services/                   # careerService (fachada), storageService, squadService,
 │                               # playerFactory, randomService, nameService, idService, eventBus
 ├── utils/                      # math, random, date

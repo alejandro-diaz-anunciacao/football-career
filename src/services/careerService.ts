@@ -33,9 +33,19 @@ import { currentStandings, fixtureForTeam, fixturesOfRound, positionOf, processC
 import { MatchSimulation, marketValue, simulateQuickMatch, suggestedWage } from '../engine/matchEngine';
 import { generateLoanOffers, generateOffers, chooseDebutTeam } from '../engine/marketEngine';
 import { projectRole } from '../engine/roleEngine';
-import { buildCups, cupLegForTeam, simulateCupTick } from '../engine/cupEngine';
+import {
+  buildCups,
+  countBracketRounds,
+  cupLegForTeam,
+  simulateCupTick,
+  simulateQualifyingTick,
+} from '../engine/cupEngine';
 import { buildSeasonSchedule } from '../engine/schedule';
+import { buildContinentalCompetitions, buildMainStage } from '../engine/continentalEngine';
+import { groupOfTeam, groupQualifiers, groupRange, simulateGroupRound, startKnockout } from '../engine/groupEngine';
 import { CUP_DEFS, cupDefOfCountry } from '../data/cups';
+import { CONTINENTAL_DEFS, continentalDef, continentalDefsOf } from '../data/continental';
+import { COUNTRIES } from '../data/continents';
 import { roundDate, windowForRound, type TransferWindow } from '../engine/calendar';
 import {
   agePlayer,
@@ -87,7 +97,7 @@ export interface NextUserFixture {
   fixture: Fixture;
   competitionId: string;
   competitionName: string;
-  kind: 'league' | 'cup';
+  kind: 'league' | 'cup' | 'continental';
 }
 
 /** Acceso controlado al estado (lanza si no hay carrera activa). */
@@ -165,9 +175,21 @@ function userCup(): Competition | null {
   return def ? current.competitions[def.id] ?? null : null;
 }
 
+/** Competiciones continentales del club del usuario. */
+function userContinentalCompetitions(): Competition[] {
+  const current = state;
+  const team = currentTeam();
+  if (!current || !team) return [];
+  const continent = COUNTRIES.find((country) => country.code === team.countryCode)?.continent;
+  if (!continent) return [];
+  return continentalDefsOf(continent)
+    .map((def) => current.competitions[def.id])
+    .filter((competition): competition is Competition => Boolean(competition));
+}
+
 /**
- * Próximo partido del usuario en la tanda en curso, sea de liga o de copa.
- * Devuelve null si la tanda no le corresponde (p. ej. copa estando eliminado).
+ * Próximo partido del usuario en la tanda en curso (liga, copa o continental).
+ * Devuelve null si la tanda no le corresponde (eliminado, descanso…).
  */
 function nextUserFixture(): NextUserFixture | null {
   const current = state;
@@ -185,10 +207,45 @@ function nextUserFixture(): NextUserFixture | null {
       : null;
   }
 
-  const cup = userCup();
-  if (!cup) return null;
-  const leg = cupLegForTeam(cup, current.teamId);
-  return leg ? { fixture: leg, competitionId: cup.id, competitionName: cup.name, kind: 'cup' } : null;
+  if (tick.kind === 'cup') {
+    const cup = userCup();
+    if (!cup) return null;
+    const leg = cupLegForTeam(cup, current.teamId);
+    return leg ? { fixture: leg, competitionId: cup.id, competitionName: cup.name, kind: 'cup' } : null;
+  }
+
+  for (const competition of userContinentalCompetitions()) {
+    if (competition.championId) continue;
+    if (competition.stage === 'groups' || competition.stage === 'league') {
+      const group = groupOfTeam(competition, current.teamId);
+      const fixture = group?.fixtures.find(
+        (item) =>
+          item.round === competition.round &&
+          !item.played &&
+          (item.homeId === current.teamId || item.awayId === current.teamId),
+      );
+      if (fixture) {
+        return {
+          fixture,
+          competitionId: competition.id,
+          competitionName: competition.name,
+          kind: 'continental',
+        };
+      }
+    } else if (competition.stage === 'qualifying' || competition.stage === 'knockout') {
+      const leg = cupLegForTeam(competition, current.teamId);
+      if (leg) {
+        return {
+          fixture: leg,
+          competitionId: competition.id,
+          competitionName: competition.name,
+          kind: 'continental',
+        };
+      }
+    }
+  }
+
+  return null;
 }
 
 /** Próximo partido (liga o copa). */
@@ -206,7 +263,7 @@ function nextOpponent(): Team | null {
 }
 
 /** Competición del próximo partido. */
-function nextCompetition(): { id: string; name: string; kind: 'league' | 'cup' } | null {
+function nextCompetition(): { id: string; name: string; kind: 'league' | 'cup' | 'continental' } | null {
   const context = nextUserFixture();
   return context ? { id: context.competitionId, name: context.competitionName, kind: context.kind } : null;
 }
@@ -417,7 +474,7 @@ function buildCareer(
     teamId: debutTeamId,
     leagues: world.leagues,
     teams: world.teams,
-    competitions: buildCups(CUP_DEFS, world.teams, 1, rng),
+    competitions: buildSeasonCompetitions(1, world.teams, world.leagues, {}, true),
     history: [],
     trophies: [],
     inbox: [],
@@ -491,9 +548,15 @@ function applyUserMatch(result: MatchResult): void {
     const fixture = fixtureForTeam(league, result.round, current.teamId);
     if (fixture) applyFixtureResult(league, fixture, result.homeGoals, result.awayGoals);
   } else {
-    const cup = current.competitions[result.competitionId];
-    if (cup) {
-      const leg = cupLegForTeam(cup, current.teamId);
+    const competition = current.competitions[result.competitionId];
+    if (competition?.stage === 'groups' || competition?.stage === 'league') {
+      const group = groupOfTeam(competition, current.teamId);
+      const fixture = group?.fixtures.find(
+        (item) => item.round === result.round && item.homeId === result.homeId && item.awayId === result.awayId,
+      );
+      if (group && fixture) applyFixtureResult(group, fixture, result.homeGoals, result.awayGoals);
+    } else if (competition) {
+      const leg = cupLegForTeam(competition, current.teamId);
       if (leg && leg.homeId === result.homeId && leg.awayId === result.awayId) {
         leg.played = true;
         leg.homeGoals = result.homeGoals;
@@ -616,6 +679,143 @@ function openWindow(window: TransferWindow): void {
   );
 }
 
+/** Construye copas y continentales de una temporada. */
+function buildSeasonCompetitions(
+  season: number,
+  teams: Record<string, Team>,
+  leagues: Record<string, League>,
+  cupChampions: Record<string, string>,
+  seasonOne: boolean,
+): Record<string, Competition> {
+  return {
+    ...buildCups(CUP_DEFS, teams, season, rng),
+    ...buildContinentalCompetitions(
+      CONTINENTAL_DEFS,
+      { teams, leagues, cupChampions, season, seasonOne },
+      rng,
+    ),
+  };
+}
+
+/**
+ * Avanza una competición continental una tanda: una jornada de grupos o una
+ * pierna eliminatoria. Si la fase de grupos termina, arranca la eliminatoria y
+ * devuelve los equipos que caen a la competición secundaria (repesca).
+ */
+function advanceContinental(competition: Competition, teams: Record<string, Team>): string[] {
+  if (competition.championId) return [];
+
+  if (competition.stage === 'groups' || competition.stage === 'league') {
+    simulateGroupRound(competition, competition.round, teams, rng);
+
+    const groupRounds = competition.groupRounds ?? 0;
+    if (competition.round < groupRounds) {
+      competition.round += 1;
+      return [];
+    }
+
+    const def = continentalDef(competition.id);
+
+    // Fase de liga: top-N a octavos y el resto al playoff.
+    if (def?.format === 'league') {
+      const standings = currentStandings(competition.groups?.[0] ?? { standings: [] });
+      const directCount = def.leagueDirect ?? 8;
+      const playoffCount = def.leaguePlayoff ?? 16;
+      const direct = standings.slice(0, directCount).map((row) => row.teamId);
+      const playoff = standings.slice(directCount, directCount + playoffCount).map((row) => row.teamId);
+      startKnockout(competition, direct, playoff, countBracketRounds(playoff.length, direct.length), teams, rng);
+      return [];
+    }
+
+    const perGroup = def?.qualifiersPerGroup ?? 1;
+    const drops = groupRange(competition, perGroup, 1);
+
+    if (def?.playoffPerGroup) {
+      const direct = groupQualifiers(competition, perGroup);
+      const playoff = groupRange(competition, perGroup, def.playoffPerGroup);
+      const entrants = [...playoff, ...(competition.pendingEntrants ?? [])];
+      startKnockout(competition, direct, entrants, countBracketRounds(entrants.length, direct.length), teams, rng);
+    } else {
+      const qualified = groupQualifiers(competition, perGroup);
+      startKnockout(competition, [], qualified, countBracketRounds(qualified.length, 0), teams, rng);
+    }
+
+    return drops;
+  }
+
+  if (competition.stage === 'knockout') {
+    simulateCupTick(competition, teams, rng);
+  }
+  return [];
+}
+
+/**
+ * Procesa una tanda continental: previas (con repesca a la secundaria), arranque
+ * de las fases principales pendientes y avance de las ya en marcha.
+ */
+function simulateContinentalTick(): void {
+  const current = requireState();
+  const defsById = new Map(CONTINENTAL_DEFS.map((def) => [def.id, def]));
+  const drops = new Map<string, string[]>();
+  const justBuilt = new Set<string>();
+
+  // 1. Fase de clasificación (previa) de las principales.
+  for (const competition of Object.values(current.competitions)) {
+    if (competition.kind !== 'continental' || competition.stage !== 'qualifying') continue;
+    const result = simulateQualifyingTick(competition, current.teams, rng);
+    if (!result) continue;
+    const def = defsById.get(competition.id);
+    if (!def) continue;
+    drops.set(competition.id, result.losers);
+    buildMainStage(
+      competition,
+      def,
+      [...(competition.mainEntrants ?? []), ...result.winners],
+      current.teams,
+      rng,
+    );
+    justBuilt.add(competition.id);
+  }
+
+  // 2. Secundarias pendientes de recibir las repescas.
+  for (const competition of Object.values(current.competitions)) {
+    if (competition.kind !== 'continental' || competition.stage !== 'pending') continue;
+    const def = defsById.get(competition.id);
+    if (!def?.receivesDropsFrom) continue;
+    const incoming = drops.get(def.receivesDropsFrom);
+    if (!incoming) continue;
+    buildMainStage(
+      competition,
+      def,
+      [...(competition.mainEntrants ?? []), ...incoming],
+      current.teams,
+      rng,
+    );
+    drops.delete(def.receivesDropsFrom);
+    justBuilt.add(competition.id);
+  }
+
+  // 3. Fases principales: las principales primero, para poder repescar en los
+  //    grupos (los terceros de la Libertadores caen a la Sudamericana).
+  const running = Object.values(current.competitions)
+    .filter((competition) => competition.kind === 'continental' && !justBuilt.has(competition.id))
+    .sort((a, b) => a.tier - b.tier);
+
+  for (const competition of running) {
+    if (competition.stage === 'pending' || competition.stage === 'qualifying') continue;
+    const def = defsById.get(competition.id);
+    if (def?.receivesDropsFrom) {
+      const incoming = drops.get(def.receivesDropsFrom);
+      if (incoming) {
+        competition.pendingEntrants = [...(competition.pendingEntrants ?? []), ...incoming];
+        drops.delete(def.receivesDropsFrom);
+      }
+    }
+    const produced = advanceContinental(competition, current.teams);
+    if (produced.length > 0) drops.set(competition.id, produced);
+  }
+}
+
 /** Efectos de haber jugado una jornada de liga: recuperación, desarrollo y avance. */
 function advanceAfterLeague(round: number, played: boolean, won: boolean): void {
   const current = requireState();
@@ -669,10 +869,12 @@ function commitUserMatch(result: MatchResult | null): RoundSummary {
   if (tick && tick.kind === 'league') {
     goalsScoredElsewhere = simulateLeagueRound(tick.round);
     advanceAfterLeague(tick.round, Boolean(result?.userStats), result?.userOutcome === 'win');
-  } else {
+  } else if (tick && tick.kind === 'cup') {
     for (const cup of Object.values(current.competitions)) {
-      simulateCupTick(cup, current.teams, rng);
+      if (cup.kind === 'cup') simulateCupTick(cup, current.teams, rng);
     }
+  } else {
+    simulateContinentalTick();
   }
 
   current.tick += 1;
@@ -821,25 +1023,25 @@ function finishSeason(): SeasonSummary {
     );
   }
 
-  // Trofeos de copa conquistados durante la temporada.
-  for (const cup of Object.values(current.competitions)) {
-    if (cup.championId && cup.championId === current.teamId && team) {
-      trophies.push({
-        id: uid('trophy'),
-        name: `Campeón de ${cup.name}`,
-        season: current.season,
-        teamId: team.id,
-        teamName: team.name,
-        kind: 'cup',
-      });
-      pushMessage(
-        MessageKind.Trophy,
-        '¡Campeón de copa!',
-        `${team.name} conquista ${cup.name}. ${player.name} suma un título más a su palmarés.`,
-        current.season,
-        current.currentRound,
-      );
-    }
+  // Trofeos de copa y continentales conquistados durante la temporada.
+  for (const competition of Object.values(current.competitions)) {
+    if (!competition.championId || competition.championId !== current.teamId || !team) continue;
+    const continental = competition.kind === 'continental';
+    trophies.push({
+      id: uid('trophy'),
+      name: `Campeón de ${competition.name}`,
+      season: current.season,
+      teamId: team.id,
+      teamName: team.name,
+      kind: continental ? 'continental' : 'cup',
+    });
+    pushMessage(
+      MessageKind.Trophy,
+      continental ? '¡Título continental!' : '¡Campeón de copa!',
+      `${team.name} conquista ${competition.name}. ${player.name} suma un título más a su palmarés.`,
+      current.season,
+      current.currentRound,
+    );
   }
 
   // Movimiento del club del jugador entre categorías.
@@ -954,12 +1156,26 @@ function finishSeason(): SeasonSummary {
   current.lastMatch = null;
   current.recentResults = [];
 
+  // Nuevas competiciones a partir de la clasificación del curso que acaba.
+  const cupChampions: Record<string, string> = {};
+  for (const competition of Object.values(current.competitions)) {
+    if (competition.kind === 'cup' && competition.countryCode && competition.championId) {
+      cupChampions[competition.countryCode] = competition.championId;
+    }
+  }
+  const nextCompetitions = buildSeasonCompetitions(
+    current.season,
+    current.teams,
+    current.leagues,
+    cupChampions,
+    false,
+  );
+
   for (const item of Object.values(current.leagues)) {
     resetLeagueForSeason(item, rng);
   }
 
-  // Nuevas copas para el curso que empieza.
-  current.competitions = buildCups(CUP_DEFS, current.teams, current.season, rng);
+  current.competitions = nextCompetitions;
 
   persist();
 
@@ -1214,6 +1430,11 @@ export const careerService = {
     const current = state;
     const league = current?.leagues[leagueId];
     return league ? currentStandings(league) : [];
+  },
+
+  /** Clasificación de un grupo de competición. */
+  standingsOfCompetitionGroup(group: { standings: StandingRow[] }): StandingRow[] {
+    return currentStandings(group);
   },
 
   /** Se llama al terminar la temporada si el calendario está agotado. */

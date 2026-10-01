@@ -9,9 +9,11 @@ import { simulateQuickMatch } from './matchEngine';
  * (con desempate por penaltis).
  */
 
-/** Piernas que se juegan en una ronda concreta (la final siempre a un partido). */
+/** Piernas que se juegan en una ronda. La final es a un partido salvo la CAF. */
 export function cupRoundLegs(competition: Competition, round: number): 1 | 2 {
-  if (round >= competition.totalRounds) return 1;
+  if (round > competition.totalRounds) return 1;
+  if (round >= competition.totalRounds) return competition.twoLeggedFinal ? 2 : 1;
+  if ((competition.knockoutFirstTwoLegged ?? 0) >= round) return 2;
   if (competition.twoLeggedRounds > 0 && round >= competition.totalRounds - competition.twoLeggedRounds) {
     return 2;
   }
@@ -31,7 +33,7 @@ function makeLeg(round: number, homeId: string, awayId: string, neutral: boolean
 }
 
 /** Empareja a los participantes de una ronda. El equipo más débil actúa de local. */
-function buildRound(
+export function buildBracketRound(
   competition: Competition,
   participants: string[],
   round: number,
@@ -40,7 +42,7 @@ function buildRound(
 ): void {
   const pool = rng.shuffle(participants);
   const twoLegs = cupRoundLegs(competition, round) === 2;
-  const neutral = round >= competition.totalRounds;
+  const neutral = round >= competition.totalRounds && !competition.twoLeggedFinal;
 
   for (let i = 0; i + 1 < pool.length; i += 2) {
     const first = pool[i];
@@ -64,7 +66,7 @@ function buildRound(
 }
 
 /** Nº total de rondas del cuadro. */
-function countRounds(roundOneSize: number, byes: number): number {
+export function countBracketRounds(roundOneSize: number, byes: number): number {
   let rounds = 1;
   let next = byes + roundOneSize / 2;
   while (next > 1) {
@@ -111,18 +113,21 @@ export function buildCup(
     name: def.name,
     season,
     kind: 'cup',
+    format: 'knockout',
+    stage: 'knockout',
     countryCode: def.countryCode,
+    tier: 1,
     teamIds: ranked,
     round: 1,
     leg: 1,
-    totalRounds: countRounds(roundOne.length, pendingByes.length),
+    totalRounds: countBracketRounds(roundOne.length, pendingByes.length),
     ties: [],
     championId: null,
     pendingByes,
     twoLeggedRounds: def.twoLeggedRounds,
   };
 
-  buildRound(competition, roundOne, 1, teams, rng);
+  buildBracketRound(competition, roundOne, 1, teams, rng);
   return competition;
 }
 
@@ -138,7 +143,7 @@ export function cupLegForTeam(competition: Competition, teamId: string): Fixture
 }
 
 /** Vencedor de una eliminatoria (agregado y, si empata, penaltis). */
-function resolveTie(tie: KnockoutTie, rng: Random): string {
+export function resolveTie(tie: KnockoutTie, rng: Random): string {
   const [first, second] = tie.legs;
   const homeGoals = first.homeGoals ?? 0;
   const awayGoals = first.awayGoals ?? 0;
@@ -156,17 +161,9 @@ function resolveTie(tie: KnockoutTie, rng: Random): string {
   return rng.chance(0.5) ? tie.homeId : tie.awayId;
 }
 
-/**
- * Juega la pierna en curso de la ronda actual (los partidos sin jugar) y, si
- * la ronda termina, resuelve las eliminatorias y construye la siguiente.
- */
-export function simulateCupTick(competition: Competition, teams: Record<string, Team>, rng: Random): void {
-  if (competition.championId) return;
-
-  const round = competition.round;
-  const ties = tiesOfRound(competition, round);
-
-  for (const tie of ties) {
+/** Juega (simulando) las piernas sin disputar de la ronda y pierna en curso. */
+export function playCurrentLeg(competition: Competition, teams: Record<string, Team>, rng: Random): void {
+  for (const tie of tiesOfRound(competition, competition.round)) {
     const leg = tie.legs[competition.leg - 1];
     if (!leg || leg.played) continue;
     const home = teams[leg.homeId];
@@ -182,6 +179,19 @@ export function simulateCupTick(competition: Competition, teams: Record<string, 
     leg.homeGoals = homeGoals;
     leg.awayGoals = awayGoals;
   }
+}
+
+/**
+ * Juega la pierna en curso de la ronda actual (los partidos sin jugar) y, si
+ * la ronda termina, resuelve las eliminatorias y construye la siguiente.
+ */
+export function simulateCupTick(competition: Competition, teams: Record<string, Team>, rng: Random): void {
+  if (competition.championId) return;
+
+  const round = competition.round;
+  const ties = tiesOfRound(competition, round);
+
+  playCurrentLeg(competition, teams, rng);
 
   if (competition.leg < cupRoundLegs(competition, round)) {
     competition.leg += 1;
@@ -203,7 +213,46 @@ export function simulateCupTick(competition: Competition, teams: Record<string, 
   competition.round = round + 1;
   competition.leg = 1;
   competition.pendingByes = [];
-  buildRound(competition, participants, competition.round, teams, rng);
+  buildBracketRound(competition, participants, competition.round, teams, rng);
+}
+
+/**
+ * Juega una tanda de la fase de clasificación (previa). Devuelve ganadores y
+ * perdedores cuando la previa termina, o null mientras sigue en curso.
+ */
+export function simulateQualifyingTick(
+  competition: Competition,
+  teams: Record<string, Team>,
+  rng: Random,
+): { winners: string[]; losers: string[] } | null {
+  if (competition.stage !== 'qualifying') return null;
+
+  playCurrentLeg(competition, teams, rng);
+  if (competition.leg < cupRoundLegs(competition, competition.round)) {
+    competition.leg += 1;
+    return null;
+  }
+
+  const ties = tiesOfRound(competition, competition.round);
+  for (const tie of ties) tie.winnerId = resolveTie(tie, rng);
+
+  if (competition.round < competition.totalRounds) {
+    const winners = ties.map((tie) => tie.winnerId).filter((id): id is string => Boolean(id));
+    competition.round += 1;
+    competition.leg = 1;
+    buildBracketRound(competition, winners, competition.round, teams, rng);
+    return null;
+  }
+
+  const winners: string[] = [];
+  const losers: string[] = [];
+  for (const tie of ties) {
+    const winner = tie.winnerId;
+    if (!winner) continue;
+    winners.push(winner);
+    losers.push(winner === tie.homeId ? tie.awayId : tie.homeId);
+  }
+  return { winners, losers };
 }
 
 /** Construye todas las copas de una temporada. */

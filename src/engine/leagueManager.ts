@@ -89,7 +89,12 @@ export function fixtureForTeam(league: League, round: number, teamId: string): F
 }
 
 /** Actualiza la clasificación con el resultado de un partido. */
-export function applyFixtureResult(league: League, fixture: Fixture, homeGoals: number, awayGoals: number): void {
+export function applyFixtureResult(
+  league: { standings: StandingRow[] },
+  fixture: Fixture,
+  homeGoals: number,
+  awayGoals: number,
+): void {
   if (fixture.played) return;
   fixture.played = true;
   fixture.homeGoals = homeGoals;
@@ -123,7 +128,7 @@ export function applyFixtureResult(league: League, fixture: Fixture, homeGoals: 
 }
 
 /** Clasificación ordenada. */
-export function currentStandings(league: League): StandingRow[] {
+export function currentStandings(league: { standings: StandingRow[] }): StandingRow[] {
   return sortStandings(league.standings);
 }
 

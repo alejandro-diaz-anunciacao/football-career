@@ -105,9 +105,9 @@ function nextMatchCard(state: CareerState, ctx: ViewContext): HTMLElement {
 
   return card({
     title:
-      competition.kind === 'cup'
-        ? `${competition.name} · Ronda ${fixture.round}`
-        : `Jornada ${state.currentRound} · ${competition.name}`,
+      competition.kind === 'league'
+        ? `Jornada ${state.currentRound} · ${competition.name}`
+        : `${competition.name} · Ronda ${fixture.round}`,
     subtitle: `${isHome ? 'Juegas en casa' : 'Juegas a domicilio'} · ${formatGameDate(state.calendar)}`,
     accent: true,
     body: [

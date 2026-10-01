@@ -156,6 +156,8 @@ export const CONFIG = {
     LEAGUE_ROUNDS: 34,
     /** Tandas de copa: se insertan entre semana tras estas jornadas de liga. */
     CUP_TICKS_AFTER_ROUND: [3, 6, 9, 12, 15, 19, 23, 28],
+    /** Tandas continentales: se insertan entre semana tras estas jornadas. */
+    CONTINENTAL_TICKS_AFTER_ROUND: [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 31, 32],
     /** Ventana de fichajes de verano (jornadas, ambas inclusive). */
     SUMMER_WINDOW: { FROM_ROUND: 1, TO_ROUND: 3 },
     /** Ventana de fichajes de invierno (jornadas, ambas inclusive). */

@@ -359,6 +359,13 @@ export const storageService = {
 
     // Copas y tanda del calendario: las partidas antiguas no las tenían.
     migrated.competitions = migrated.competitions ?? {};
+    for (const competition of Object.values(migrated.competitions)) {
+      competition.format = competition.format ?? 'knockout';
+      competition.stage = competition.stage ?? 'knockout';
+      competition.tier = competition.tier ?? 1;
+      competition.pendingEntrants = competition.pendingEntrants ?? [];
+      competition.mainEntrants = competition.mainEntrants ?? competition.teamIds;
+    }
     if (migrated.tick == null) {
       const round = Math.max(1, migrated.currentRound);
       const schedule = buildSeasonSchedule(migrated.season);
