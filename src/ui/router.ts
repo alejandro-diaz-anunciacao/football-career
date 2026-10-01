@@ -1,7 +1,7 @@
 /** Enrutador por hash, ligero y sin dependencias. */
 
 /** Rutas disponibles en la aplicación. */
-export type RouteId = 'creation' | 'saves' | 'dashboard' | 'match' | 'table' | 'history' | 'market';
+export type RouteId = 'creation' | 'saves' | 'dashboard' | 'match' | 'table' | 'competitions' | 'history' | 'market';
 
 /** Ruta resuelta. */
 export interface Route {
@@ -12,7 +12,7 @@ export interface Route {
 
 const DEFAULT_ROUTE: RouteId = 'dashboard';
 
-const VALID: readonly RouteId[] = ['creation', 'saves', 'dashboard', 'match', 'table', 'history', 'market'];
+const VALID: readonly RouteId[] = ['creation', 'saves', 'dashboard', 'match', 'table', 'competitions', 'history', 'market'];
 
 /** Convierte el hash actual en una ruta tipada. */
 export function parseHash(hash: string): Route {

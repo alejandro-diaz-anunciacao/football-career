@@ -76,7 +76,10 @@ export const historyView: ViewFactory = (ctx: ViewContext) => {
                   el(
                     'div',
                     { class: 'trophy-item' },
-                    el('span', { class: 'trophy-item__icon', text: trophy.kind === 'individual' ? '🥇' : '🏆' }),
+                    el('span', {
+                      class: 'trophy-item__icon',
+                      text: trophy.kind === 'individual' ? '🥇' : trophy.kind === 'continental' ? '🌍' : '🏆',
+                    }),
                     el(
                       'div',
                       { class: 'stack', attrs: { style: 'gap:2px' } },

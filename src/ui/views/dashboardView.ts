@@ -35,12 +35,36 @@ function nextMatchCard(state: CareerState, ctx: ViewContext): HTMLElement {
   const team = careerService.currentTeam();
   const rival = careerService.nextOpponent();
   const fixture = careerService.nextFixture();
-  const league = careerService.currentLeague();
+  const competition = careerService.nextCompetition();
 
-  if (!team || !rival || !fixture || !league) {
+  if (!team || !rival || !fixture || !competition) {
+    const seasonOver = careerService.needsSeasonClose();
     return card({
-      title: 'Sin partido programado',
-      body: [emptyState('No hay encuentros pendientes en esta jornada.')],
+      title: 'Sin partido esta jornada',
+      subtitle: formatGameDate(state.calendar),
+      body: [
+        emptyState(
+          seasonOver
+            ? 'La temporada ha terminado. Cierra el curso para continuar.'
+            : 'Tu equipo no juega en esta tanda (copa o descanso).',
+        ),
+        seasonOver
+          ? null
+          : el(
+              'div',
+              { class: 'row' },
+              el('button', {
+                class: 'btn btn--primary',
+                text: '▶ Continuar',
+                on: {
+                  click: () => {
+                    careerService.skipToNextMatch();
+                    ctx.refresh();
+                  },
+                },
+              }),
+            ),
+      ],
     });
   }
 
@@ -80,7 +104,10 @@ function nextMatchCard(state: CareerState, ctx: ViewContext): HTMLElement {
   });
 
   return card({
-    title: `Jornada ${state.currentRound} · ${league.name}`,
+    title:
+      competition.kind === 'cup'
+        ? `${competition.name} · Ronda ${fixture.round}`
+        : `Jornada ${state.currentRound} · ${competition.name}`,
     subtitle: `${isHome ? 'Juegas en casa' : 'Juegas a domicilio'} · ${formatGameDate(state.calendar)}`,
     accent: true,
     body: [

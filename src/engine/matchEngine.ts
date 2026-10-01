@@ -37,6 +37,10 @@ export interface MatchSimulationOptions {
   userRole: SquadRole;
   approach: TacticalApproach;
   round: number;
+  /** Competición del partido (liga o copa). */
+  competitionId: string;
+  /** Sede neutral (finales de copa). */
+  neutral?: boolean;
   rng: Random;
 }
 
@@ -449,6 +453,7 @@ export class MatchSimulation {
       homeDefenseFactor: userIsHome ? mods.defense : 1,
       awayAttackFactor: userIsHome ? 1 : mods.attack,
       awayDefenseFactor: userIsHome ? 1 : mods.defense,
+      neutral: this.options.neutral,
     });
 
     const plan: PlannedEvent[] = [
@@ -658,6 +663,7 @@ export class MatchSimulation {
     const bestTeammate = 6.9 + this.options.rng.float(0, 1.3);
 
     return {
+      competitionId: this.options.competitionId,
       round: this.round,
       homeId: this.homeTeamId,
       awayId: this.awayTeamId,
@@ -751,8 +757,13 @@ export function selectStartingEleven(
 }
 
 /** Simula un partido cualquiera de forma rápida (solo marcador). */
-export function simulateQuickMatch(home: Team, away: Team, rng: Random): { homeGoals: number; awayGoals: number } {
-  const lambdas = matchLambdas(home, away);
+export function simulateQuickMatch(
+  home: Team,
+  away: Team,
+  rng: Random,
+  neutral = false,
+): { homeGoals: number; awayGoals: number } {
+  const lambdas = matchLambdas(home, away, { neutral });
   return {
     homeGoals: samplePoisson(lambdas.home, rng),
     awayGoals: samplePoisson(lambdas.away, rng),

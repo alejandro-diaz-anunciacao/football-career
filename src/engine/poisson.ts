@@ -60,6 +60,8 @@ export function matchLambdas(
     awayAttackFactor?: number;
     homeDefenseFactor?: number;
     awayDefenseFactor?: number;
+    /** Sede neutral: ni local ni visitante reciben ventaja. */
+    neutral?: boolean;
   } = {},
 ): { home: number; away: number } {
   const homeMid = midfieldAdjustment(home.midfield, away.midfield);
@@ -70,9 +72,12 @@ export function matchLambdas(
   const homeDefense = home.defense * (options.homeDefenseFactor ?? 1);
   const awayDefense = away.defense * (options.awayDefenseFactor ?? 1);
 
+  const homeFactor = options.neutral ? 1 : CONFIG.MATCH.HOME_FACTOR;
+  const awayFactor = options.neutral ? 1 : CONFIG.MATCH.AWAY_FACTOR;
+
   return {
-    home: expectedGoals(homeAttack, awayDefense, CONFIG.MATCH.HOME_FACTOR),
-    away: expectedGoals(awayAttack, homeDefense, CONFIG.MATCH.AWAY_FACTOR),
+    home: expectedGoals(homeAttack, awayDefense, homeFactor),
+    away: expectedGoals(awayAttack, homeDefense, awayFactor),
   };
 }
 

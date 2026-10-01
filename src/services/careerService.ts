@@ -15,6 +15,7 @@ import {
 import type {
   AttributeKey,
   CareerState,
+  Competition,
   Fixture,
   League,
   MatchResult,
@@ -32,6 +33,9 @@ import { currentStandings, fixtureForTeam, fixturesOfRound, positionOf, processC
 import { MatchSimulation, marketValue, simulateQuickMatch, suggestedWage } from '../engine/matchEngine';
 import { generateLoanOffers, generateOffers, chooseDebutTeam } from '../engine/marketEngine';
 import { projectRole } from '../engine/roleEngine';
+import { buildCups, cupLegForTeam, simulateCupTick } from '../engine/cupEngine';
+import { buildSeasonSchedule } from '../engine/schedule';
+import { CUP_DEFS, cupDefOfCountry } from '../data/cups';
 import { roundDate, windowForRound, type TransferWindow } from '../engine/calendar';
 import {
   agePlayer,
@@ -76,6 +80,14 @@ export interface DebutOption {
 export interface DebutChoice {
   seed: number;
   teamId: string;
+}
+
+/** Contexto del próximo partido del usuario. */
+export interface NextUserFixture {
+  fixture: Fixture;
+  competitionId: string;
+  competitionName: string;
+  kind: 'league' | 'cup';
 }
 
 /** Acceso controlado al estado (lanza si no hay carrera activa). */
@@ -144,12 +156,44 @@ function currentTeam(): Team | null {
   return current.teams[current.teamId] ?? null;
 }
 
-/** Próximo partido del usuario en la jornada en curso. */
-function nextFixture(): Fixture | null {
+/** Copa nacional del club del usuario. */
+function userCup(): Competition | null {
   const current = state;
-  const league = currentLeague();
-  if (!current || !league) return null;
-  return fixtureForTeam(league, current.currentRound, current.teamId) ?? null;
+  const team = currentTeam();
+  if (!current || !team) return null;
+  const def = cupDefOfCountry(team.countryCode);
+  return def ? current.competitions[def.id] ?? null : null;
+}
+
+/**
+ * Próximo partido del usuario en la tanda en curso, sea de liga o de copa.
+ * Devuelve null si la tanda no le corresponde (p. ej. copa estando eliminado).
+ */
+function nextUserFixture(): NextUserFixture | null {
+  const current = state;
+  if (!current) return null;
+
+  const tick = buildSeasonSchedule(current.season)[current.tick];
+  if (!tick) return null;
+
+  if (tick.kind === 'league') {
+    const league = currentLeague();
+    if (!league) return null;
+    const fixture = fixtureForTeam(league, tick.round, current.teamId);
+    return fixture
+      ? { fixture, competitionId: league.id, competitionName: league.name, kind: 'league' }
+      : null;
+  }
+
+  const cup = userCup();
+  if (!cup) return null;
+  const leg = cupLegForTeam(cup, current.teamId);
+  return leg ? { fixture: leg, competitionId: cup.id, competitionName: cup.name, kind: 'cup' } : null;
+}
+
+/** Próximo partido (liga o copa). */
+function nextFixture(): Fixture | null {
+  return nextUserFixture()?.fixture ?? null;
 }
 
 /** Rival del próximo partido. */
@@ -159,6 +203,12 @@ function nextOpponent(): Team | null {
   if (!current || !fixture) return null;
   const rivalId = fixture.homeId === current.teamId ? fixture.awayId : fixture.homeId;
   return current.teams[rivalId] ?? null;
+}
+
+/** Competición del próximo partido. */
+function nextCompetition(): { id: string; name: string; kind: 'league' | 'cup' } | null {
+  const context = nextUserFixture();
+  return context ? { id: context.competitionId, name: context.competitionName, kind: context.kind } : null;
 }
 
 /**
@@ -362,10 +412,12 @@ function buildCareer(
     phase: SeasonPhase.League,
     currentRound: 1,
     calendar: roundDate(1, 1),
+    tick: 0,
     player,
     teamId: debutTeamId,
     leagues: world.leagues,
     teams: world.teams,
+    competitions: buildCups(CUP_DEFS, world.teams, 1, rng),
     history: [],
     trophies: [],
     inbox: [],
@@ -403,11 +455,11 @@ function buildCareer(
 /** Construye la simulación interactiva del partido del usuario. */
 function createUserMatch(approach: TacticalApproach): MatchSimulation | null {
   const current = requireState();
-  const league = currentLeague();
   const team = currentTeam();
-  const fixture = nextFixture();
-  if (!league || !team || !fixture) return null;
+  const next = nextUserFixture();
+  if (!team || !next) return null;
 
+  const fixture = next.fixture;
   const homeTeam = current.teams[fixture.homeId];
   const awayTeam = current.teams[fixture.awayId];
   if (!homeTeam || !awayTeam) return null;
@@ -422,7 +474,9 @@ function createUserMatch(approach: TacticalApproach): MatchSimulation | null {
     userPlayer: current.player,
     userRole: squadRole(),
     approach,
-    round: current.currentRound,
+    round: fixture.round,
+    competitionId: next.competitionId,
+    neutral: fixture.neutral,
     rng,
   });
 }
@@ -430,12 +484,22 @@ function createUserMatch(approach: TacticalApproach): MatchSimulation | null {
 /** Aplica el resultado del partido del usuario a su expediente. */
 function applyUserMatch(result: MatchResult): void {
   const current = requireState();
-  const league = currentLeague();
   const player = current.player;
 
+  const league = current.leagues[result.competitionId];
   if (league) {
     const fixture = fixtureForTeam(league, result.round, current.teamId);
     if (fixture) applyFixtureResult(league, fixture, result.homeGoals, result.awayGoals);
+  } else {
+    const cup = current.competitions[result.competitionId];
+    if (cup) {
+      const leg = cupLegForTeam(cup, current.teamId);
+      if (leg && leg.homeId === result.homeId && leg.awayId === result.awayId) {
+        leg.played = true;
+        leg.homeGoals = result.homeGoals;
+        leg.awayGoals = result.awayGoals;
+      }
+    }
   }
 
   const stats = result.userStats;
@@ -485,13 +549,13 @@ function applyUserMatch(result: MatchResult): void {
   current.recentResults = [result, ...current.recentResults].slice(0, 5);
 }
 
-/** Simula el resto de la jornada en todas las ligas del mundo. */
-function simulateRestOfRound(): number {
+/** Simula el resto de una jornada de liga en todas las ligas del mundo. */
+function simulateLeagueRound(round: number): number {
   const current = requireState();
   let goals = 0;
 
   for (const league of Object.values(current.leagues)) {
-    for (const fixture of fixturesOfRound(league, current.currentRound)) {
+    for (const fixture of fixturesOfRound(league, round)) {
       if (fixture.played) continue;
       const home = current.teams[fixture.homeId];
       const away = current.teams[fixture.awayId];
@@ -552,8 +616,8 @@ function openWindow(window: TransferWindow): void {
   );
 }
 
-/** Cierra la jornada en curso y avanza el calendario. */
-function advanceRound(played: boolean, won: boolean): void {
+/** Efectos de haber jugado una jornada de liga: recuperación, desarrollo y avance. */
+function advanceAfterLeague(round: number, played: boolean, won: boolean): void {
   const current = requireState();
   const league = currentLeague();
   const player = current.player;
@@ -561,7 +625,7 @@ function advanceRound(played: boolean, won: boolean): void {
   recoverWeekly(player, played, won);
 
   // Avance de desarrollo cada pocas jornadas: el jugador ve crecer sus atributos.
-  if ((current.currentRound - 1) % CONFIG.PROGRESSION.DEVELOPMENT_INTERVAL === 0) {
+  if ((round - 1) % CONFIG.PROGRESSION.DEVELOPMENT_INTERVAL === 0) {
     const report = applyDevelopmentTick(player, player.seasonStats, current.season, rng);
     if (report && report.ovrDelta !== 0) {
       pushMessage(
@@ -569,16 +633,12 @@ function advanceRound(played: boolean, won: boolean): void {
         'Informe de desarrollo',
         `${report.narrative} Media global: ${player.ovr}.`,
         current.season,
-        current.currentRound,
+        round,
       );
     }
   }
 
-  current.currentRound += 1;
-
-  const lastRound = league?.totalRounds ?? current.currentRound;
-  const calendarRound = Math.min(current.currentRound, lastRound);
-  current.calendar = roundDate(current.season, calendarRound);
+  current.currentRound = round + 1;
 
   if (league && current.currentRound > league.totalRounds) {
     current.phase = SeasonPhase.Offseason;
@@ -590,9 +650,14 @@ function advanceRound(played: boolean, won: boolean): void {
   }
 }
 
-/** Registra el resultado del partido del usuario y simula el resto de la jornada. */
+/**
+ * Procesa la tanda en curso: aplica el partido del usuario (si lo hay),
+ * simula el resto de la jornada (liga o copa) y avanza el calendario.
+ */
 function commitUserMatch(result: MatchResult | null): RoundSummary {
   const current = requireState();
+  const schedule = buildSeasonSchedule(current.season);
+  const tick = schedule[current.tick];
   const round = current.currentRound;
   const knownIds = new Set(current.inbox.map((message) => message.id));
 
@@ -600,8 +665,20 @@ function commitUserMatch(result: MatchResult | null): RoundSummary {
     applyUserMatch(result);
   }
 
-  const goalsScoredElsewhere = simulateRestOfRound();
-  advanceRound(Boolean(result?.userStats), result?.userOutcome === 'win');
+  let goalsScoredElsewhere = 0;
+  if (tick && tick.kind === 'league') {
+    goalsScoredElsewhere = simulateLeagueRound(tick.round);
+    advanceAfterLeague(tick.round, Boolean(result?.userStats), result?.userOutcome === 'win');
+  } else {
+    for (const cup of Object.values(current.competitions)) {
+      simulateCupTick(cup, current.teams, rng);
+    }
+  }
+
+  current.tick += 1;
+  const nextTick = schedule[current.tick];
+  if (nextTick) current.calendar = nextTick.date;
+
   estimateSquadSituation(round);
 
   persist();
@@ -636,18 +713,36 @@ function estimateSquadSituation(round: number): void {
   }
 }
 
-/** Simula el partido del usuario de golpe, sin visor interactivo. */
+/**
+ * Simula el partido del usuario de golpe. Si la tanda no tiene partido suyo
+ * (copa estando eliminado), avanza igualmente el calendario.
+ */
 function simulateUserMatchQuick(approach: TacticalApproach): MatchResult | null {
   const simulation = createUserMatch(approach);
-  if (!simulation) return null;
-  const result = simulation.simulateAll();
-  applyUserMatch(result);
-  const current = requireState();
-  simulateRestOfRound();
-  advanceRound(Boolean(result.userStats), result.userOutcome === 'win');
-  estimateSquadSituation(current.currentRound - 1);
-  persist();
+  const result = simulation ? simulation.simulateAll() : null;
+  commitUserMatch(result);
   return result;
+}
+
+/**
+ * Avanza las tandas en las que el usuario no juega (copa estando eliminado,
+ * descansos…) hasta su próximo partido o el cierre de la temporada.
+ */
+function skipToNextMatch(): void {
+  requireState();
+  let guard = 0;
+  while (!nextUserFixture() && !isSeasonClosed() && guard < 30) {
+    commitUserMatch(null);
+    guard += 1;
+  }
+}
+
+/** ¿Ha terminado la temporada? */
+function isSeasonClosed(): boolean {
+  const current = state;
+  const league = currentLeague();
+  if (!current || !league) return false;
+  return current.phase === SeasonPhase.Offseason;
 }
 
 /* --------------------------------------------------------- Fin de temporada */
@@ -724,6 +819,27 @@ function finishSeason(): SeasonSummary {
       current.season,
       current.currentRound,
     );
+  }
+
+  // Trofeos de copa conquistados durante la temporada.
+  for (const cup of Object.values(current.competitions)) {
+    if (cup.championId && cup.championId === current.teamId && team) {
+      trophies.push({
+        id: uid('trophy'),
+        name: `Campeón de ${cup.name}`,
+        season: current.season,
+        teamId: team.id,
+        teamName: team.name,
+        kind: 'cup',
+      });
+      pushMessage(
+        MessageKind.Trophy,
+        '¡Campeón de copa!',
+        `${team.name} conquista ${cup.name}. ${player.name} suma un título más a su palmarés.`,
+        current.season,
+        current.currentRound,
+      );
+    }
   }
 
   // Movimiento del club del jugador entre categorías.
@@ -833,6 +949,7 @@ function finishSeason(): SeasonSummary {
   current.seasonsPlayed += 1;
   current.currentRound = 1;
   current.calendar = roundDate(current.season, 1);
+  current.tick = 0;
   current.phase = SeasonPhase.League;
   current.lastMatch = null;
   current.recentResults = [];
@@ -840,6 +957,9 @@ function finishSeason(): SeasonSummary {
   for (const item of Object.values(current.leagues)) {
     resetLeagueForSeason(item, rng);
   }
+
+  // Nuevas copas para el curso que empieza.
+  current.competitions = buildCups(CUP_DEFS, current.teams, current.season, rng);
 
   persist();
 
@@ -1060,6 +1180,9 @@ export const careerService = {
   currentTeam,
   nextFixture,
   nextOpponent,
+  nextCompetition,
+  nextUserFixture,
+  userCup,
   squadRole,
   transferWindow,
   windowOpen,
@@ -1067,6 +1190,7 @@ export const careerService = {
   createUserMatch,
   commitUserMatch,
   simulateUserMatchQuick,
+  skipToNextMatch,
   finishSeason,
   acceptOffer,
   rejectOffers,
@@ -1094,10 +1218,7 @@ export const careerService = {
 
   /** Se llama al terminar la temporada si el calendario está agotado. */
   needsSeasonClose(): boolean {
-    const current = state;
-    const league = currentLeague();
-    if (!current || !league) return false;
-    return current.phase === SeasonPhase.Offseason;
+    return isSeasonClosed();
   },
 
   /** Ofertas vigentes. */

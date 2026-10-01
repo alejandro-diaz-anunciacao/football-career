@@ -17,6 +17,7 @@ const NAV_ITEMS: readonly { id: string; label: string }[] = [
   { id: 'dashboard', label: 'Vestuario' },
   { id: 'match', label: 'Partido' },
   { id: 'table', label: 'Clasificación' },
+  { id: 'competitions', label: 'Competiciones' },
   { id: 'market', label: 'Mercado' },
   { id: 'history', label: 'Historial' },
   { id: 'saves', label: 'Partidas' },

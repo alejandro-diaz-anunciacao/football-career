@@ -12,7 +12,7 @@ export interface StandingRow {
   points: number;
 }
 
-/** Encuentro programado dentro de una liga. */
+/** Encuentro programado dentro de una liga o eliminatoria. */
 export interface Fixture {
   round: number;
   homeId: string;
@@ -20,6 +20,8 @@ export interface Fixture {
   played: boolean;
   homeGoals: number | null;
   awayGoals: number | null;
+  /** Partido en sede neutral (sin ventaja de local). */
+  neutral?: boolean;
 }
 
 /** Competición liguera con su calendario y clasificación. */

@@ -4,4 +4,5 @@ export * from './config';
 export * from './continents';
 export * from './names';
 export * from './leagues';
+export * from './cups';
 export * from './worldBuilder';

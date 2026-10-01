@@ -58,6 +58,7 @@ export const matchView: ViewFactory = (ctx: ViewContext) => {
   const team = careerService.currentTeam();
   const rival = careerService.nextOpponent();
   const league = careerService.currentLeague();
+  const competition = careerService.nextCompetition();
 
   if (!fixture || !team || !rival || !league) {
     return el(
@@ -339,9 +340,13 @@ export const matchView: ViewFactory = (ctx: ViewContext) => {
     );
   };
 
+  const competitionName = competition?.name ?? league.name;
+  const competitionTitle =
+    competition?.kind === 'cup' ? `${competitionName} · Ronda ${fixture.round}` : `Jornada ${state.currentRound} · ${competitionName}`;
+
   const buildPrematchCard = (): HTMLElement =>
     card({
-    title: `Jornada ${state.currentRound} · ${league.name}`,
+    title: competitionTitle,
     subtitle: `${homeTeam.name} vs ${awayTeam.name} · ${formatGameDate(state.calendar)}`,
     accent: true,
     body: [
@@ -405,7 +410,7 @@ export const matchView: ViewFactory = (ctx: ViewContext) => {
         {},
         el('span', { class: 'page-head__eyebrow', text: 'Visor de partidos' }),
         el('h1', { text: `${homeTeam.short} vs ${awayTeam.short}` }),
-        el('p', { class: 'text-muted', text: `${league.name} · Jornada ${state.currentRound}` }),
+        el('p', { class: 'text-muted', text: `${competitionName} · ${formatGameDate(state.calendar)}` }),
       ),
       el('button', { class: 'btn btn--ghost', text: 'Salir', on: { click: () => { stopAuto(); ctx.navigate('dashboard'); } } }),
     ),

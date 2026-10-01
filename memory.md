@@ -137,9 +137,10 @@ acordarlo.
   - ⚠️ Si cambias la forma de `League` o `Fixture`, actualiza **ambas** funciones.
 - **Migración de campos:** `storageService.migrate(state)` rellena campos nuevos
   (`recentResults`, `offers`, `inbox`, `trophies`, `history`, `trainingFocus`,
-  `seasonGrowth`, `lastGrowth`, `player.loan`, `calendar`) y normaliza
-  `TransferOffer.kind`/`projectedRole`; además actualiza `version`. Al añadir un
-  campo a `Player` o `CareerState`, **añádelo también aquí**.
+  `seasonGrowth`, `lastGrowth`, `player.loan`, `calendar`, `competitions`,
+  `tick`) y normaliza `TransferOffer.kind`/`projectedRole`; además actualiza
+  `version`. Al añadir un campo a `Player` o `CareerState`, **añádelo también aquí**.
+  `tick` se deriva de `currentRound` en partidas antiguas.
 - **Robustez:** en Node sin shim de `localStorage`, `storageService` traga errores
   y `loadSlot()` devuelve `null` en silencio. Para probar persistencia, define un
   shim primero.
@@ -189,6 +190,14 @@ acordarlo.
 - **Ofertas variables:** `generateOffers(..., performance)` calcula 0-`MAX_OFFERS`
   según rendimiento, OVR y azar; con `performance >= GOOD_PERFORMANCE` garantiza
   al menos una. Puede haber ventanas sin ninguna oferta.
+- **Calendario de tandas:** `CareerState.tick` indexa `buildSeasonSchedule(season)`
+  (jornadas de liga + tandas de copa entre semana). Un avance = una tanda; el
+  usuario juega como máximo un partido por tanda. `currentRound` solo avanza en
+  las tandas de liga (lo usan ventanas y desarrollo).
+- **Copas:** `CareerState.competitions` guarda una `Competition` por país con
+  todos sus equipos. `simulateCupTick` juega la pierna en curso y avanza el cuadro;
+  `applyUserMatch` aplica el resultado a la liga o copa según `result.competitionId`.
+  Si el usuario no juega una tanda de copa (eliminado), `skipToNextMatch` avanza.
 
 ## 7. Modelo de dominio (resumen)
 
@@ -201,9 +210,13 @@ acordarlo.
   `teamOverall()` pondera 0.34/0.33/0.33.
 - **`League`/`Fixture`/`StandingRow`**: `sortStandings` aplica puntos → diferencia
   de goles → goles a favor → id. `tier` 1 = máxima categoría.
+- **`Competition`**: copa (y futuras continentales). Guarda `ties` (`KnockoutTie`
+  con sus piernas `Fixture`), `round`/`leg`, `totalRounds`, `championId`,
+  `pendingByes` y `twoLeggedRounds`.
 - **`CareerState`**: todo el estado serializable (seed, rngState, season, phase,
-  currentRound, **calendar** (`GameDate`), player, teamId, leagues, teams, history,
-  trophies, inbox, offers, lastMatch, recentResults, seasonsPlayed, previousFinish).
+  currentRound, **calendar** (`GameDate`), **tick**, player, teamId, leagues,
+  teams, **competitions**, history, trophies, inbox, offers, lastMatch,
+  recentResults, seasonsPlayed, previousFinish).
 - **Enums string**: `Position`, `Foot`, `Continent`, `SquadRole`, `MatchEventType`,
   `SeasonPhase`, `MessageKind`, `TacticalApproach`. Tipos: `MatchOutcome`, `TeamSide`.
 
@@ -216,6 +229,8 @@ acordarlo.
 | `ratingEngine.ts` | `computeRating` (1.0-10.0 ponderada por posición y resultado), `ratingLabel`, `ratingTone`. |
 | `roleEngine.ts` | `projectRole(player, team, squad?)`: rol (`Starter`/`Bench`/`NotCalled`) y minutos estimados. Banda de rotación amplia + bonus de promesa. **Fuente única del rol** (la usan `careerService` con plantilla real y el mercado con la media del club). |
 | `calendar.ts` | `roundDate(season, round)` y `windowForRound(round)`: fechas reales de cada jornada y ventana de fichajes activa. |
+| `schedule.ts` | `buildSeasonSchedule(season)`: lista de tandas (liga y copa entre semana) con su fecha. |
+| `cupEngine.ts` | `buildCup`/`buildCups`, `simulateCupTick`, `cupLegForTeam`: cuadro de copa (previa o exentos), ida/vuelta, resolución por agregado/penaltis. |
 | `progressionEngine.ts` | Plan de temporada, avances parciales (`applyDevelopmentTick`), cierre (`applySeasonGrowth`), `agePlayer`, `recoverWeekly`, `updateForm`, `mergeSeasonIntoCareer`. |
 | `leagueManager.ts` | Calendario (círculo), clasificación, ascensos/descensos (`processPromotionRelegation`, `processCountryPyramid`). |
 | `marketEngine.ts` | `interestedTeams`, `generateOffers`, `chooseDebutTeam`. |
@@ -261,8 +276,10 @@ google-chrome --headless=new --disable-gpu --no-sandbox --remote-debugging-port=
 ## 9. UI y estilos
 
 - **Enrutador por hash** propio (`ui/router.ts`): rutas tipadas `creation`, `saves`,
-  `dashboard`, `match`, `table`, `history`, `market`. Soporta query params;
-  `parseHash` cae a `dashboard` si la ruta no es válida.
+  `dashboard`, `match`, `table`, `competitions`, `history`, `market`. Soporta query
+  params; `parseHash` cae a `dashboard` si la ruta no es válida.
+- **Vista de competiciones** (`competitionsView`): selector de copa y cuadro de
+  eliminatorias con las piernas y el campeón.
 - **Bootstrap (`ui/app.ts`):** monta cabecera + main, conecta `router.onChange`,
   escucha `state:changed` (solo cabecera) y `state:cleared` (vuelve a `creation`).
   Sin carrera activa redirige a `saves` si hay ranuras o a `creation` si no.
@@ -302,10 +319,10 @@ google-chrome --headless=new --disable-gpu --no-sandbox --remote-debugging-port=
 ```
 src/
 ├── main.ts                     # importa main.css + bootstrap()
-├── models/                     # enums, player, team, league, match, career, index
-├── data/                       # config, continents, names, leagues, worldBuilder, index
+├── models/                     # enums, player, team, league, competition, match, career, index
+├── data/                       # config, continents, names, leagues, cups, worldBuilder, index
 ├── engine/                     # poisson, matchEngine, ratingEngine, roleEngine, calendar,
-│                               # progressionEngine, leagueManager, marketEngine
+│                               # schedule, cupEngine, progressionEngine, leagueManager, marketEngine
 ├── services/                   # careerService (fachada), storageService, squadService,
 │                               # playerFactory, randomService, nameService, idService, eventBus
 ├── utils/                      # math, random, date
@@ -313,5 +330,6 @@ src/
 └── ui/
     ├── app.ts, router.ts, dom.ts
     ├── components/             # card, header, statBar, matchLog, modal, toast, tabs, debutPicker
-    └── views/                  # creation, saves, dashboard, match, table, history, market, types
+    └── views/                  # creation, saves, dashboard, match, table, competitions,
+                                # history, market, types
 ```

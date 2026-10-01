@@ -612,6 +612,45 @@ tr.zone-relegation td:first-child {
   border-color: rgba(255, 85, 102, 0.28);
 }
 
+/* --- Competiciones (copas) ---------------------------------------------- */
+.bracket {
+  display: flex;
+  gap: var(--space-4);
+  overflow-x: auto;
+  padding-bottom: var(--space-2);
+}
+
+.bracket-round {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 220px;
+}
+
+.bracket-tie {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.bracket-team {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-200);
+}
+
+.bracket-team.is-winner {
+  color: var(--accent);
+}
+
+.bracket-team.is-user {
+  text-decoration: underline;
+}
+
 /* --- Mercado ------------------------------------------------------------- */.offer-card {
   display: flex;
   flex-direction: column;

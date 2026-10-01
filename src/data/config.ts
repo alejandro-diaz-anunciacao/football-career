@@ -152,6 +152,10 @@ export const CONFIG = {
     WINTER_BREAK_ROUND: 17,
     /** Duración del parón de invierno, en días. */
     WINTER_BREAK_DAYS: 21,
+    /** Jornadas de liga por temporada. */
+    LEAGUE_ROUNDS: 34,
+    /** Tandas de copa: se insertan entre semana tras estas jornadas de liga. */
+    CUP_TICKS_AFTER_ROUND: [3, 6, 9, 12, 15, 19, 23, 28],
     /** Ventana de fichajes de verano (jornadas, ambas inclusive). */
     SUMMER_WINDOW: { FROM_ROUND: 1, TO_ROUND: 3 },
     /** Ventana de fichajes de invierno (jornadas, ambas inclusive). */

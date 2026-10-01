@@ -55,6 +55,8 @@ export function emptyMatchStats(): PlayerMatchStats {
 
 /** Resultado completo de un encuentro. */
 export interface MatchResult {
+  /** Competición a la que pertenece el partido (liga o copa). */
+  competitionId: string;
   round: number;
   homeId: string;
   awayId: string;

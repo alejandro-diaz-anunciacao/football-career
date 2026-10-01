@@ -3,6 +3,7 @@ import { SquadRole, emptySeasonGrowth } from '../models';
 import type { CareerState, Fixture, League, Player, Position } from '../models';
 import { DEFAULT_FOCUS } from '../engine/progressionEngine';
 import { roundDate } from '../engine/calendar';
+import { buildSeasonSchedule } from '../engine/schedule';
 
 /**
  * Fila compacta de un partido: `[jornada, local, visitante, jugado, gf, gc]`.
@@ -355,6 +356,15 @@ export const storageService = {
 
     // Calendario: en partidas antiguas se deriva de la jornada en curso.
     migrated.calendar = migrated.calendar ?? roundDate(migrated.season, migrated.currentRound);
+
+    // Copas y tanda del calendario: las partidas antiguas no las tenían.
+    migrated.competitions = migrated.competitions ?? {};
+    if (migrated.tick == null) {
+      const round = Math.max(1, migrated.currentRound);
+      const schedule = buildSeasonSchedule(migrated.season);
+      const index = schedule.findIndex((tick) => tick.kind === 'league' && tick.round === round);
+      migrated.tick = index >= 0 ? index : 0;
+    }
 
     migrated.version = CONFIG.CAREER.SAVE_VERSION;
     return migrated;

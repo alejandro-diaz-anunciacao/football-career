@@ -157,6 +157,13 @@ rotación) y no superan un salto de nivel razonable para tu edad; solo de forma 
 aparece una oferta ambiciosa de un club mayor. Si no tienes minutos, puedes **pedir una
 cesión** a un club donde serías titular y regresar a tu equipo al final de la temporada.
 
+**Copas nacionales.** Cada país tiene su **copa**, con todos los equipos de todas sus
+categorías: cuadro con **ronda preliminar** (o exentos, como la DFB-Pokal), eliminatorias
+**a ida y vuelta** en las últimas rondas según el torneo real (semifinales en España e
+Italia, desde octavos en Brasil…) y **final a partido único en sede neutral**. Las rondas
+se juegan entre semana, en **tandas propias**, así que conviven con la liga en la misma
+semana.
+
 **Calendario y ventanas de fichajes.** La temporada arranca a mediados de agosto y avanza
 jornada a jornada con **fecha real** (parón de invierno incluido). Los traspasos y cesiones
 solo se cierran durante las **ventanas de verano e invierno**; el resto del año el mercado
