@@ -78,7 +78,14 @@ export const historyView: ViewFactory = (ctx: ViewContext) => {
                     { class: 'trophy-item' },
                     el('span', {
                       class: 'trophy-item__icon',
-                      text: trophy.kind === 'individual' ? '🥇' : trophy.kind === 'continental' ? '🌍' : '🏆',
+                      text:
+                        trophy.kind === 'individual'
+                          ? '🥇'
+                          : trophy.kind === 'continental'
+                            ? '🌍'
+                            : trophy.kind === 'national'
+                              ? '🌐'
+                              : '🏆',
                     }),
                     el(
                       'div',

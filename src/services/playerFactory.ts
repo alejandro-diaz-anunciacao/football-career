@@ -93,6 +93,7 @@ export function createPlayer(input: PlayerCreationInput, rng: Random): Player {
     lastGrowth: null,
     seasonStats: emptySeasonStats(),
     careerStats: emptySeasonStats(),
+    nationalStats: emptySeasonStats(),
     contract: {
       teamId: '',
       wage: CONFIG.MARKET.MIN_WAGE,

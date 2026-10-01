@@ -1,5 +1,5 @@
 import { CONFIG } from '../data/config';
-import { SquadRole, emptySeasonGrowth } from '../models';
+import { SquadRole, emptySeasonGrowth, emptySeasonStats } from '../models';
 import type { CareerState, Fixture, League, Player, Position } from '../models';
 import { DEFAULT_FOCUS } from '../engine/progressionEngine';
 import { roundDate } from '../engine/calendar';
@@ -352,6 +352,7 @@ export const storageService = {
       player.seasonGrowth = player.seasonGrowth ?? emptySeasonGrowth(player.ovr);
       player.lastGrowth = player.lastGrowth ?? null;
       player.loan = player.loan ?? null;
+      player.nationalStats = player.nationalStats ?? emptySeasonStats();
     }
 
     // Calendario: en partidas antiguas se deriva de la jornada en curso.
@@ -366,6 +367,18 @@ export const storageService = {
       competition.pendingEntrants = competition.pendingEntrants ?? [];
       competition.mainEntrants = competition.mainEntrants ?? competition.teamIds;
     }
+
+    // Competiciones de selecciones y amistosos: las partidas antiguas no los tenían.
+    migrated.nationalCompetitions = migrated.nationalCompetitions ?? {};
+    for (const competition of Object.values(migrated.nationalCompetitions)) {
+      competition.format = competition.format ?? 'groups';
+      competition.stage = competition.stage ?? 'done';
+      competition.tier = competition.tier ?? 1;
+      competition.pendingEntrants = competition.pendingEntrants ?? [];
+      competition.mainEntrants = competition.mainEntrants ?? competition.teamIds;
+    }
+    migrated.friendlies = migrated.friendlies ?? [];
+
     if (migrated.tick == null) {
       const round = Math.max(1, migrated.currentRound);
       const schedule = buildSeasonSchedule(migrated.season);

@@ -6,6 +6,7 @@
 export * from './enums';
 export * from './player';
 export * from './team';
+export * from './nation';
 export * from './league';
 export * from './competition';
 export * from './match';

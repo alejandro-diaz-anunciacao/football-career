@@ -176,6 +176,13 @@ copa, previas y **repescas** entre ambas:
 - **Asia** — AFC Champions League Elite (fase de liga por regiones) y Two (grupos).
 - **África** — CAF Champions y Confederation (grupos, con la **final a ida y vuelta**).
 
+**Selección nacional.** Tu futbolista puede ser **convocado por su país** según su media,
+forma, edad y competencia en su posición. En las **ventanas internacionales** (7 por
+temporada) juega amistosos o la **fase de clasificación**; cada **dos temporadas** hay
+**torneo**: la **Copa del Mundo** (48 selecciones, 12 grupos y mejores terceros) cada
+cuatro, y los **continentales** (Eurocopa, Copa América, Copa Oro, Copa Asiática y CAF)
+desfasados. Sus internacionalidades, goles y títulos quedan en el palmarés.
+
 **Calendario y ventanas de fichajes.** La temporada arranca a mediados de agosto y avanza
 jornada a jornada con **fecha real** (parón de invierno incluido). Los traspasos y cesiones
 solo se cierran durante las **ventanas de verano e invierno**; el resto del año el mercado

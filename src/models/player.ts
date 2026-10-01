@@ -249,6 +249,8 @@ export interface Player {
   lastGrowth: GrowthReport | null;
   seasonStats: PlayerSeasonStats;
   careerStats: PlayerSeasonStats;
+  /** Estadísticas con la selección nacional (acumuladas de por vida). */
+  nationalStats: PlayerSeasonStats;
   contract: Contract;
   /** Cesión activa, o null si el futbolista pertenece a su club actual. */
   loan: Loan | null;

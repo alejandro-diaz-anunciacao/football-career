@@ -19,6 +19,7 @@ import type {
   Fixture,
   League,
   MatchResult,
+  NationalTeam,
   Player,
   RoundSummary,
   SeasonHistory,
@@ -40,12 +41,21 @@ import {
   simulateCupTick,
   simulateQualifyingTick,
 } from '../engine/cupEngine';
-import { buildSeasonSchedule } from '../engine/schedule';
+import { buildSeasonSchedule, isTournamentSeason, isWorldCupSeason, type SeasonTick } from '../engine/schedule';
 import { buildContinentalCompetitions, buildMainStage } from '../engine/continentalEngine';
+import {
+  buildQualifying,
+  buildTournament,
+  finishTournamentGroups,
+  nationTeams,
+  qualifiedFrom,
+} from '../engine/nationalEngine';
 import { groupOfTeam, groupQualifiers, groupRange, simulateGroupRound, startKnockout } from '../engine/groupEngine';
 import { CUP_DEFS, cupDefOfCountry } from '../data/cups';
 import { CONTINENTAL_DEFS, continentalDef, continentalDefsOf } from '../data/continental';
 import { COUNTRIES } from '../data/continents';
+import { NATIONS, nationByCode } from '../data/nations';
+import { nationalTournamentDef, nationalTournamentsFor, qualifierId } from '../data/nationalTournaments';
 import { roundDate, windowForRound, type TransferWindow } from '../engine/calendar';
 import {
   agePlayer,
@@ -60,7 +70,7 @@ import {
 } from '../engine/progressionEngine';
 import { formatGameDate, type GameDate } from '../utils/date';
 import { createPlayer, type PlayerCreationInput } from './playerFactory';
-import { getSquad } from './squadService';
+import { getNationalSquad, getSquad } from './squadService';
 import { storageService, type SaveSlot } from './storageService';
 import { uid } from './idService';
 import { Random, randomSeed, rng } from './randomService';
@@ -97,7 +107,7 @@ export interface NextUserFixture {
   fixture: Fixture;
   competitionId: string;
   competitionName: string;
-  kind: 'league' | 'cup' | 'continental';
+  kind: 'league' | 'cup' | 'continental' | 'national';
 }
 
 /** Acceso controlado al estado (lanza si no hay carrera activa). */
@@ -187,8 +197,70 @@ function userContinentalCompetitions(): Competition[] {
     .filter((competition): competition is Competition => Boolean(competition));
 }
 
+/** Número de ventana internacional (1-based) en la que está la tanda actual. */
+function currentNationalWindow(schedule: SeasonTick[], tick: number): number {
+  let count = 0;
+  for (let i = 0; i <= tick && i < schedule.length; i += 1) {
+    const item = schedule[i];
+    if (item.kind === 'national' && item.phase === 'window') count += 1;
+  }
+  return count;
+}
+
+/** Próximo partido internacional (clasificación, amistoso o torneo). */
+function nationalUserFixture(phase: 'window' | 'tournament'): NextUserFixture | null {
+  const current = state;
+  const nation = userNation();
+  if (!current || !nation) return null;
+
+  if (phase === 'window') {
+    for (const competition of Object.values(current.nationalCompetitions)) {
+      if (competition.stage !== 'league') continue;
+      const group = groupOfTeam(competition, nation.id);
+      const fixture = group?.fixtures.find(
+        (item) =>
+          item.round === competition.round &&
+          !item.played &&
+          (item.homeId === nation.id || item.awayId === nation.id),
+      );
+      if (fixture) {
+        return { fixture, competitionId: competition.id, competitionName: competition.name, kind: 'national' };
+      }
+    }
+
+    const schedule = buildSeasonSchedule(current.season);
+    const windowNumber = currentNationalWindow(schedule, current.tick);
+    const friendly = current.friendlies.find((item) => item.round === windowNumber && !item.played);
+    return friendly
+      ? { fixture: friendly, competitionId: 'nat.friendly', competitionName: 'Amistoso', kind: 'national' }
+      : null;
+  }
+
+  for (const competition of Object.values(current.nationalCompetitions)) {
+    if (competition.stage === 'groups' || competition.stage === 'league') {
+      const group = groupOfTeam(competition, nation.id);
+      const fixture = group?.fixtures.find(
+        (item) =>
+          item.round === competition.round &&
+          !item.played &&
+          (item.homeId === nation.id || item.awayId === nation.id),
+      );
+      if (fixture) {
+        return { fixture, competitionId: competition.id, competitionName: competition.name, kind: 'national' };
+      }
+    } else if (competition.stage === 'knockout') {
+      const leg = cupLegForTeam(competition, nation.id);
+      if (leg) {
+        return { fixture: leg, competitionId: competition.id, competitionName: competition.name, kind: 'national' };
+      }
+    }
+  }
+
+  return null;
+}
+
 /**
- * Próximo partido del usuario en la tanda en curso (liga, copa o continental).
+ * Próximo partido del usuario en la tanda en curso (liga, copa, continental o selección).
  * Devuelve null si la tanda no le corresponde (eliminado, descanso…).
  */
 function nextUserFixture(): NextUserFixture | null {
@@ -212,6 +284,10 @@ function nextUserFixture(): NextUserFixture | null {
     if (!cup) return null;
     const leg = cupLegForTeam(cup, current.teamId);
     return leg ? { fixture: leg, competitionId: cup.id, competitionName: cup.name, kind: 'cup' } : null;
+  }
+
+  if (tick.kind === 'national') {
+    return nationalUserFixture(tick.phase);
   }
 
   for (const competition of userContinentalCompetitions()) {
@@ -263,7 +339,7 @@ function nextOpponent(): Team | null {
 }
 
 /** Competición del próximo partido. */
-function nextCompetition(): { id: string; name: string; kind: 'league' | 'cup' | 'continental' } | null {
+function nextCompetition(): { id: string; name: string; kind: 'league' | 'cup' | 'continental' | 'national' } | null {
   const context = nextUserFixture();
   return context ? { id: context.competitionId, name: context.competitionName, kind: context.kind } : null;
 }
@@ -279,6 +355,69 @@ function squadRole(): SquadRole {
 
   const squad = getSquad(team);
   return projectRole(current.player, team, squad).role;
+}
+
+/* ------------------------------------------------- Selección nacional */
+
+/** Selección nacional del jugador. */
+function userNation(): NationalTeam | null {
+  const current = state;
+  if (!current) return null;
+  return nationByCode(current.player.countryCode) ?? null;
+}
+
+/** Equipo por identificador: club (`t.*`) o selección (`nat.*`). */
+function teamFor(id: string): Team | undefined {
+  const current = state;
+  if (!current) return undefined;
+  if (id.startsWith('nat.')) return nationTeams()[id];
+  return current.teams[id];
+}
+
+/** Confianza del seleccionador: media, forma y edad. */
+function nationalEffective(player: Player): number {
+  const ageBonus = player.age <= 21 ? 3 : player.age >= 34 ? -4 : 0;
+  return player.ovr + player.form * 2 + ageBonus;
+}
+
+/** Mejor nivel de la selección en la posición del jugador. */
+function nationalBestOvr(): number {
+  const current = state;
+  const nation = userNation();
+  if (!current || !nation) return 60;
+  const team = nationTeams()[nation.id];
+  if (!team) return nation.strength;
+  const rivals = getNationalSquad(team)
+    .filter((member) => member.position === current.player.position)
+    .sort((a, b) => b.ovr - a.ovr);
+  return rivals[0]?.ovr ?? nation.strength;
+}
+
+/** ¿Está convocado con su selección? */
+function isCalledUp(): boolean {
+  const current = state;
+  const nation = userNation();
+  if (!current || !nation) return false;
+  const player = current.player;
+  if (player.injuryWeeks > 0 || player.fitness < 40) return false;
+  const effective = nationalEffective(player);
+  if (effective < nation.strength - 8) return false;
+  return effective >= nationalBestOvr() - 5;
+}
+
+/** Rol del jugador en la selección. */
+function nationalRole(): SquadRole {
+  const current = state;
+  const nation = userNation();
+  if (!current || !nation) return SquadRole.NotCalled;
+  const player = current.player;
+  if (player.injuryWeeks > 0 || player.fitness < 40) return SquadRole.NotCalled;
+
+  const effective = nationalEffective(player);
+  const best = nationalBestOvr();
+  if (effective >= best - 1.5) return SquadRole.Starter;
+  if (effective >= best - 6) return SquadRole.Bench;
+  return SquadRole.NotCalled;
 }
 
 /* ---------------------------------------------------- Gestión de partidas */
@@ -475,6 +614,8 @@ function buildCareer(
     leagues: world.leagues,
     teams: world.teams,
     competitions: buildSeasonCompetitions(1, world.teams, world.leagues, {}, true),
+    nationalCompetitions: {},
+    friendlies: [],
     history: [],
     trophies: [],
     inbox: [],
@@ -484,6 +625,8 @@ function buildCareer(
     seasonsPlayed: 0,
     previousFinish: null,
   };
+
+  buildNationalSeason(1);
 
   const country = findCountry(input.countryCode);
   pushMessage(
@@ -512,24 +655,36 @@ function buildCareer(
 /** Construye la simulación interactiva del partido del usuario. */
 function createUserMatch(approach: TacticalApproach): MatchSimulation | null {
   const current = requireState();
-  const team = currentTeam();
   const next = nextUserFixture();
-  if (!team || !next) return null;
+  if (!next) return null;
+
+  const national = next.kind === 'national';
+  const nation = userNation();
+  const team = currentTeam();
+  const userTeamId = national ? nation?.id : team?.id;
+  if (!userTeamId) return null;
 
   const fixture = next.fixture;
-  const homeTeam = current.teams[fixture.homeId];
-  const awayTeam = current.teams[fixture.awayId];
+  const homeTeam = teamFor(fixture.homeId);
+  const awayTeam = teamFor(fixture.awayId);
   if (!homeTeam || !awayTeam) return null;
 
-  const homeSquad = getSquad(homeTeam, homeTeam.id === team.id ? current.player : undefined);
-  const awaySquad = getSquad(awayTeam, awayTeam.id === team.id ? current.player : undefined);
+  const injectAt = (id: string): Player | undefined =>
+    id === userTeamId ? current.player : undefined;
+
+  const homeSquad = national
+    ? getNationalSquad(homeTeam, injectAt(homeTeam.id))
+    : getSquad(homeTeam, injectAt(homeTeam.id));
+  const awaySquad = national
+    ? getNationalSquad(awayTeam, injectAt(awayTeam.id))
+    : getSquad(awayTeam, injectAt(awayTeam.id));
 
   return new MatchSimulation({
     home: { team: homeTeam, squad: homeSquad },
     away: { team: awayTeam, squad: awaySquad },
-    userTeamId: team.id,
+    userTeamId,
     userPlayer: current.player,
-    userRole: squadRole(),
+    userRole: national ? nationalRole() : squadRole(),
     approach,
     round: fixture.round,
     competitionId: next.competitionId,
@@ -542,21 +697,35 @@ function createUserMatch(approach: TacticalApproach): MatchSimulation | null {
 function applyUserMatch(result: MatchResult): void {
   const current = requireState();
   const player = current.player;
+  const national = result.competitionId.startsWith('nat.');
+  const userTeamId = national ? userNation()?.id ?? '' : current.teamId;
+
+  if (result.competitionId === 'nat.friendly') {
+    const friendly = current.friendlies.find(
+      (item) => item.round === result.round && item.homeId === result.homeId && item.awayId === result.awayId,
+    );
+    if (friendly) {
+      friendly.played = true;
+      friendly.homeGoals = result.homeGoals;
+      friendly.awayGoals = result.awayGoals;
+    }
+  }
 
   const league = current.leagues[result.competitionId];
   if (league) {
     const fixture = fixtureForTeam(league, result.round, current.teamId);
     if (fixture) applyFixtureResult(league, fixture, result.homeGoals, result.awayGoals);
   } else {
-    const competition = current.competitions[result.competitionId];
+    const competition =
+      current.competitions[result.competitionId] ?? current.nationalCompetitions[result.competitionId];
     if (competition?.stage === 'groups' || competition?.stage === 'league') {
-      const group = groupOfTeam(competition, current.teamId);
+      const group = groupOfTeam(competition, userTeamId);
       const fixture = group?.fixtures.find(
         (item) => item.round === result.round && item.homeId === result.homeId && item.awayId === result.awayId,
       );
       if (group && fixture) applyFixtureResult(group, fixture, result.homeGoals, result.awayGoals);
     } else if (competition) {
-      const leg = cupLegForTeam(competition, current.teamId);
+      const leg = cupLegForTeam(competition, userTeamId);
       if (leg && leg.homeId === result.homeId && leg.awayId === result.awayId) {
         leg.played = true;
         leg.homeGoals = result.homeGoals;
@@ -566,8 +735,9 @@ function applyUserMatch(result: MatchResult): void {
   }
 
   const stats = result.userStats;
+  const accumulator = national ? player.nationalStats : player.seasonStats;
   if (stats) {
-    addStats(player.seasonStats, {
+    addStats(accumulator, {
       appearances: 1,
       starts: stats.minutes >= 60 ? 1 : 0,
       minutes: stats.minutes,
@@ -586,8 +756,8 @@ function applyUserMatch(result: MatchResult): void {
       redCards: stats.redCards,
       motm: result.userMotm ? 1 : 0,
     });
-    player.seasonStats.ratingSum += result.userRating ?? 0;
-    player.seasonStats.ratingCount += 1;
+    accumulator.ratingSum += result.userRating ?? 0;
+    accumulator.ratingCount += 1;
   }
 
   updateForm(player, result.userRating, Boolean(stats));
@@ -816,6 +986,124 @@ function simulateContinentalTick(): void {
   }
 }
 
+/* ---------------------------------------------------- Selección nacional */
+
+/** Amistoso del jugador contra una selección. */
+function makeFriendly(opponentId: string, round: number, home: boolean): Fixture {
+  const user = userNation()?.id ?? '';
+  return {
+    round,
+    homeId: home ? user : opponentId,
+    awayId: home ? opponentId : user,
+    played: false,
+    homeGoals: null,
+    awayGoals: null,
+  };
+}
+
+/** Rival amistoso de nivel parecido. */
+function friendlyOpponent(nation: NationalTeam): string {
+  const pool = Object.values(NATIONS).filter(
+    (other) => other.id !== nation.id && Math.abs(other.strength - nation.strength) <= 10,
+  );
+  const list = pool.length > 0 ? pool : Object.values(NATIONS).filter((other) => other.id !== nation.id);
+  return rng.pick(list).id;
+}
+
+/** Prepara las competiciones de selecciones de una temporada. */
+function buildNationalSeason(season: number): void {
+  const current = requireState();
+  current.nationalCompetitions = {};
+  current.friendlies = [];
+
+  const nation = userNation();
+  if (isTournamentSeason(season)) {
+    for (const def of nationalTournamentsFor(isWorldCupSeason(season))) {
+      for (const confederation of def.confederations) {
+        const id = qualifierId(confederation);
+        if (!current.nationalCompetitions[id]) {
+          current.nationalCompetitions[id] = buildQualifying(confederation, season, rng);
+        }
+      }
+    }
+  } else if (nation) {
+    const windows = CONFIG.CALENDAR.NATIONAL_WINDOWS_AFTER_ROUND.length;
+    for (let i = 0; i < windows; i += 1) {
+      current.friendlies.push(makeFriendly(friendlyOpponent(nation), i + 1, i % 2 === 0));
+    }
+  }
+}
+
+/** Avanza una liguilla de clasificación una jornada. */
+function advanceNationalQualifying(competition: Competition): void {
+  simulateGroupRound(competition, competition.round, nationTeams(), rng);
+  if (competition.round < (competition.groupRounds ?? 0)) competition.round += 1;
+  else competition.stage = 'done';
+}
+
+/** Construye los torneos cuando la clasificación ha terminado. */
+function maybeBuildTournaments(): void {
+  const current = requireState();
+  const defs = nationalTournamentsFor(isWorldCupSeason(current.season));
+  const alreadyBuilt = defs.some((def) => {
+    const competition = current.nationalCompetitions[def.id];
+    return Boolean(competition && (competition.stage === 'groups' || competition.stage === 'knockout' || competition.championId));
+  });
+  if (alreadyBuilt) return;
+
+  const allDone = defs.every((def) =>
+    def.confederations.every(
+      (confederation) => current.nationalCompetitions[qualifierId(confederation)]?.stage === 'done',
+    ),
+  );
+  if (!allDone) return;
+
+  for (const def of defs) {
+    const qualified: string[] = [];
+    for (const confederation of def.confederations) {
+      const qualifying = current.nationalCompetitions[qualifierId(confederation)];
+      if (qualifying) qualified.push(...qualifiedFrom(qualifying, def.directSlots[confederation] ?? 0));
+    }
+    current.nationalCompetitions[def.id] = buildTournament(def, qualified, current.season, rng);
+  }
+}
+
+/** Avanza un torneo de selecciones una jornada o pierna. */
+function advanceNationalTournament(competition: Competition): void {
+  if (competition.championId) return;
+  if (competition.stage === 'groups') {
+    simulateGroupRound(competition, competition.round, nationTeams(), rng);
+    if (competition.round < (competition.groupRounds ?? 0)) {
+      competition.round += 1;
+    } else {
+      const def = nationalTournamentDef(competition.id);
+      if (def) finishTournamentGroups(competition, def, rng);
+    }
+    return;
+  }
+  if (competition.stage === 'knockout') {
+    simulateCupTick(competition, nationTeams(), rng);
+  }
+}
+
+/** Procesa una tanda internacional (ventana o torneo). */
+function simulateNationalTick(phase: 'window' | 'tournament'): void {
+  const current = requireState();
+  if (phase === 'window') {
+    for (const competition of Object.values(current.nationalCompetitions)) {
+      if (competition.stage === 'league') advanceNationalQualifying(competition);
+    }
+    maybeBuildTournaments();
+    return;
+  }
+
+  for (const competition of Object.values(current.nationalCompetitions)) {
+    if (competition.stage === 'groups' || competition.stage === 'knockout') {
+      advanceNationalTournament(competition);
+    }
+  }
+}
+
 /** Efectos de haber jugado una jornada de liga: recuperación, desarrollo y avance. */
 function advanceAfterLeague(round: number, played: boolean, won: boolean): void {
   const current = requireState();
@@ -873,8 +1161,10 @@ function commitUserMatch(result: MatchResult | null): RoundSummary {
     for (const cup of Object.values(current.competitions)) {
       if (cup.kind === 'cup') simulateCupTick(cup, current.teams, rng);
     }
-  } else {
+  } else if (tick && tick.kind === 'continental') {
     simulateContinentalTick();
+  } else if (tick && tick.kind === 'national') {
+    simulateNationalTick(tick.phase);
   }
 
   current.tick += 1;
@@ -939,12 +1229,11 @@ function skipToNextMatch(): void {
   }
 }
 
-/** ¿Ha terminado la temporada? */
+/** ¿Ha terminado la temporada? (se han consumido todas las tandas). */
 function isSeasonClosed(): boolean {
   const current = state;
-  const league = currentLeague();
-  if (!current || !league) return false;
-  return current.phase === SeasonPhase.Offseason;
+  if (!current) return false;
+  return current.tick >= buildSeasonSchedule(current.season).length;
 }
 
 /* --------------------------------------------------------- Fin de temporada */
@@ -1042,6 +1331,31 @@ function finishSeason(): SeasonSummary {
       current.season,
       current.currentRound,
     );
+  }
+
+  // Título con la selección nacional.
+  const userNationTeam = userNation();
+  if (userNationTeam) {
+    for (const competition of Object.values(current.nationalCompetitions)) {
+      const def = nationalTournamentDef(competition.id);
+      if (def && competition.championId === userNationTeam.id) {
+        trophies.push({
+          id: uid('trophy'),
+          name: def.name,
+          season: current.season,
+          teamId: userNationTeam.id,
+          teamName: userNationTeam.name,
+          kind: 'national',
+        });
+        pushMessage(
+          MessageKind.Trophy,
+          '¡Campeón con la selección!',
+          `${userNationTeam.name} conquista ${def.name}.`,
+          current.season,
+          current.currentRound,
+        );
+      }
+    }
   }
 
   // Movimiento del club del jugador entre categorías.
@@ -1176,6 +1490,7 @@ function finishSeason(): SeasonSummary {
   }
 
   current.competitions = nextCompetitions;
+  buildNationalSeason(current.season);
 
   persist();
 
@@ -1399,6 +1714,9 @@ export const careerService = {
   nextCompetition,
   nextUserFixture,
   userCup,
+  userNation,
+  isCalledUp,
+  nationalRole,
   squadRole,
   transferWindow,
   windowOpen,

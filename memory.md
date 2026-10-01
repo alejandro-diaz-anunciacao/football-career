@@ -137,9 +137,10 @@ acordarlo.
   - ⚠️ Si cambias la forma de `League` o `Fixture`, actualiza **ambas** funciones.
 - **Migración de campos:** `storageService.migrate(state)` rellena campos nuevos
   (`recentResults`, `offers`, `inbox`, `trophies`, `history`, `trainingFocus`,
-  `seasonGrowth`, `lastGrowth`, `player.loan`, `calendar`, `competitions`,
-  `tick`) y normaliza `TransferOffer.kind`/`projectedRole` y los campos de las
-  `Competition` (`format`/`stage`/`tier`/`mainEntrants`); además actualiza `version`.
+  `seasonGrowth`, `lastGrowth`, `player.loan`, `player.nationalStats`, `calendar`,
+  `competitions`, `nationalCompetitions`, `friendlies`, `tick`) y normaliza
+  `TransferOffer.kind`/`projectedRole` y los campos de las `Competition`
+  (`format`/`stage`/`tier`/`mainEntrants`); además actualiza `version`.
   Al añadir un campo a `Player` o `CareerState`, **añádelo también aquí**. `tick` se
   deriva de `currentRound` en partidas antiguas.
 - **Robustez:** en Node sin shim de `localStorage`, `storageService` traga errores
@@ -200,6 +201,14 @@ acordarlo.
   curso (KO); `simulateGroupRound` la jornada de grupos; `applyUserMatch` aplica a liga,
   grupo (tabla) o KO según `result.competitionId` y la fase. Si el usuario no juega la
   tanda, `skipToNextMatch` avanza.
+- **Selección nacional:** `data/nations.ts` (~100 selecciones) y `data/nationalTournaments.ts`.
+  `CareerState.nationalCompetitions` guarda la clasificación (liguilla por confederación,
+  7 jornadas) y los torneos; `friendlies` los amistosos del jugador. Las ventanas
+  internacionales y los torneos son tandas `'national'` en el calendario
+  (`buildSeasonSchedule`). La convocatoria (`isCalledUp`) pesa media, forma, edad y
+  competencia; las estadísticas van a `player.nationalStats`. Ciclos: **Mundial** en las
+  temporadas 4/8/12… y **continentales** en 2/6/10…. La temporada cierra al consumir todas
+  las tandas (`tick >= schedule.length`), no por la jornada de liga.
 - **Continentales:** `buildSeasonCompetitions` crea copas + continentales al empezar
   temporada. En la primera se clasifica por nivel; después, por puesto de liga y campeón
   de copa, sin que un club juegue dos competiciones del continente (salvo `shareTeams`,
@@ -220,7 +229,10 @@ acordarlo.
   physical, goalkeeping), `ovr` recalculado siempre desde atributos con
   `ovrFromAttributes` (pesos por posición), `potential` oculto, `form` (−1..1),
   `morale`/`fitness` (0..100), `injuryWeeks`, `trainingFocus`, `seasonGrowth`,
-  `lastGrowth`, `seasonStats`/`careerStats`, `contract`, `loan` (`Loan | null`).
+  `lastGrowth`, `seasonStats`/`careerStats`/`nationalStats`, `contract`,
+  `loan` (`Loan | null`).
+- **`NationalTeam`** (`models/nation.ts`): `id` (`nat.<código>`), `name`, `code`,
+  `confederation`, `strength`. `nationAsTeam` lo convierte en `Team` para el motor.
 - **`Team`**: `attack`/`midfield`/`defense`/`overall` (1-99) y `reputation` (1-100).
   `teamOverall()` pondera 0.34/0.33/0.33.
 - **`League`/`Fixture`/`StandingRow`**: `sortStandings` aplica puntos → diferencia
@@ -251,6 +263,7 @@ acordarlo.
 | `cupEngine.ts` | `buildCup`/`buildCups`, `simulateCupTick`, `cupLegForTeam`, `buildBracketRound`, `countBracketRounds`: cuadro de eliminatoria (previa o exentos), ida/vuelta, resolución por agregado/penaltis. |
 | `groupEngine.ts` | `buildGroups` (bombos, cualquier tamaño de grupo), `buildLeaguePhase` (tabla única), `simulateGroupRound`, `groupQualifiers`, `groupRange`, `startKnockout`: grupos o fase de liga y salto a la eliminatoria. |
 | `continentalEngine.ts` | `buildContinentalCompetitions`, `buildMainStage`: clasificados por puesto de liga y campeón de copa, con previa (`qualifying`), secundarias en espera (`pending`) y reparto por continente. |
+| `nationalEngine.ts` | `nationAsTeam`/`nationTeams`, `buildQualifying` (liguilla por confederación), `qualifiedFrom`, `buildTournament` (grupos) y `finishTournamentGroups` (mejores terceros → eliminatoria). |
 | `progressionEngine.ts` | Plan de temporada, avances parciales (`applyDevelopmentTick`), cierre (`applySeasonGrowth`), `agePlayer`, `recoverWeekly`, `updateForm`, `mergeSeasonIntoCareer`. |
 | `leagueManager.ts` | Calendario (círculo), clasificación, ascensos/descensos (`processPromotionRelegation`, `processCountryPyramid`). |
 | `marketEngine.ts` | `interestedTeams`, `generateOffers`, `chooseDebutTeam`. |
@@ -296,8 +309,10 @@ google-chrome --headless=new --disable-gpu --no-sandbox --remote-debugging-port=
 ## 9. UI y estilos
 
 - **Enrutador por hash** propio (`ui/router.ts`): rutas tipadas `creation`, `saves`,
-  `dashboard`, `match`, `table`, `competitions`, `history`, `market`. Soporta query
-  params; `parseHash` cae a `dashboard` si la ruta no es válida.
+  `dashboard`, `match`, `table`, `competitions`, `national`, `history`, `market`.
+  Soporta query params; `parseHash` cae a `dashboard` si la ruta no es válida.
+- **Vista de selección** (`nationalView`): nación, convocatoria, estadísticas
+  internacionales y clasificación/torneos de selecciones.
 - **Vista de competiciones** (`competitionsView`): selector de copa y cuadro de
   eliminatorias con las piernas y el campeón.
 - **Bootstrap (`ui/app.ts`):** monta cabecera + main, conecta `router.onChange`,
@@ -339,10 +354,11 @@ google-chrome --headless=new --disable-gpu --no-sandbox --remote-debugging-port=
 ```
 src/
 ├── main.ts                     # importa main.css + bootstrap()
-├── models/                     # enums, player, team, league, competition, match, career, index
-├── data/                       # config, continents, names, leagues, cups, continental, worldBuilder, index
+├── models/                     # enums, player, team, nation, league, competition, match, career, index
+├── data/                       # config, continents, names, leagues, cups, continental,
+│                               # nations, nationalTournaments, worldBuilder, index
 ├── engine/                     # poisson, matchEngine, ratingEngine, roleEngine, calendar,
-│                               # schedule, cupEngine, groupEngine, continentalEngine,
+│                               # schedule, cupEngine, groupEngine, continentalEngine, nationalEngine,
 │                               # progressionEngine, leagueManager, marketEngine
 ├── services/                   # careerService (fachada), storageService, squadService,
 │                               # playerFactory, randomService, nameService, idService, eventBus
@@ -352,5 +368,5 @@ src/
     ├── app.ts, router.ts, dom.ts
     ├── components/             # card, header, statBar, matchLog, modal, toast, tabs, debutPicker
     └── views/                  # creation, saves, dashboard, match, table, competitions,
-                                # history, market, types
+                                # national, history, market, types
 ```

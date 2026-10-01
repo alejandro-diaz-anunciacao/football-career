@@ -125,6 +125,32 @@ export function getSquad(team: Team, user?: Player): SquadMember[] {
   return result;
 }
 
+/**
+ * Plantilla de una selección. Genera una base determinista a partir del id y,
+ * si el jugador es convocado, lo inyecta en su posición.
+ */
+export function getNationalSquad(team: Team, user?: Player): SquadMember[] {
+  let base = squadCache.get(team.id);
+  if (!base) {
+    base = buildSquad(team);
+    squadCache.set(team.id, base);
+  }
+
+  if (!user) return base;
+
+  const member = userToSquadMember(user);
+  const samePositionIndex = base.reduce(
+    (weakest, current, index) =>
+      current.position === user.position && current.ovr < base[weakest].ovr ? index : weakest,
+    base.findIndex((entry) => entry.position === user.position),
+  );
+
+  const result = [...base];
+  if (samePositionIndex >= 0) result[samePositionIndex] = member;
+  else result.push(member);
+  return result;
+}
+
 /** Limpia la caché de plantillas (al iniciar una carrera nueva). */
 export function clearSquadCache(): void {
   squadCache.clear();

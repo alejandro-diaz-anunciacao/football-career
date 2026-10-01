@@ -1,7 +1,7 @@
 import type { GameDate } from '../utils/date';
 import type { Competition } from './competition';
 import { MessageKind, SeasonPhase, SquadRole } from './enums';
-import type { League } from './league';
+import type { Fixture, League } from './league';
 
 export type { GameDate };
 import type { MatchResult } from './match';
@@ -38,7 +38,7 @@ export interface Trophy {
   season: number;
   teamId: string;
   teamName: string;
-  kind: 'league' | 'individual' | 'promotion' | 'cup' | 'continental';
+  kind: 'league' | 'individual' | 'promotion' | 'cup' | 'continental' | 'national';
 }
 
 /** Acción adjunta a un mensaje de la bandeja. */
@@ -98,8 +98,12 @@ export interface CareerState {
   calendar: GameDate;
   /** Índice de la tanda en curso dentro del calendario de la temporada. */
   tick: number;
-  /** Copas (y futuras competiciones continentales) de la temporada. */
+  /** Copas y competiciones continentales de la temporada. */
   competitions: Record<string, Competition>;
+  /** Competiciones de selecciones: clasificación y torneos. */
+  nationalCompetitions: Record<string, Competition>;
+  /** Amistosos internacionales del jugador en la temporada. */
+  friendlies: Fixture[];
   player: Player;
   teamId: string;
   leagues: Record<string, League>;

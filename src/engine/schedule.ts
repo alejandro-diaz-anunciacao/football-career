@@ -10,12 +10,24 @@ import { roundDate } from './calendar';
 export type SeasonTick =
   | { kind: 'league'; round: number; date: GameDate }
   | { kind: 'cup'; date: GameDate }
-  | { kind: 'continental'; date: GameDate };
+  | { kind: 'continental'; date: GameDate }
+  | { kind: 'national'; phase: 'window' | 'tournament'; date: GameDate };
+
+/** ¿Temporada de torneo de selecciones? (cada dos años desde la 2). */
+export function isTournamentSeason(season: number): boolean {
+  return season % 2 === 0;
+}
+
+/** ¿Temporada de Mundial? (cada cuatro años desde la 4). */
+export function isWorldCupSeason(season: number): boolean {
+  return season % 4 === 0;
+}
 
 /** Construye el calendario de una temporada de forma determinista. */
 export function buildSeasonSchedule(season: number): SeasonTick[] {
   const cupAfter = new Set<number>(CONFIG.CALENDAR.CUP_TICKS_AFTER_ROUND);
   const continentalAfter = new Set<number>(CONFIG.CALENDAR.CONTINENTAL_TICKS_AFTER_ROUND);
+  const nationalAfter = new Set<number>(CONFIG.CALENDAR.NATIONAL_WINDOWS_AFTER_ROUND);
   const ticks: SeasonTick[] = [];
 
   for (let round = 1; round <= CONFIG.CALENDAR.LEAGUE_ROUNDS; round += 1) {
@@ -26,6 +38,16 @@ export function buildSeasonSchedule(season: number): SeasonTick[] {
     }
     if (continentalAfter.has(round)) {
       ticks.push({ kind: 'continental', date: addGameDays(leagueDate, 5) });
+    }
+    if (nationalAfter.has(round)) {
+      ticks.push({ kind: 'national', phase: 'window', date: addGameDays(leagueDate, 6) });
+    }
+  }
+
+  if (isTournamentSeason(season)) {
+    const lastLeague = roundDate(season, CONFIG.CALENDAR.LEAGUE_ROUNDS);
+    for (let i = 0; i < CONFIG.CALENDAR.TOURNAMENT_TICKS; i += 1) {
+      ticks.push({ kind: 'national', phase: 'tournament', date: addGameDays(lastLeague, 7 * (i + 1)) });
     }
   }
 

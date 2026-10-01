@@ -2,7 +2,7 @@ import type { Continent } from './enums';
 import type { Fixture, StandingRow } from './league';
 
 /** Tipo de competición adicional a las ligas. */
-export type CompetitionKind = 'cup' | 'continental';
+export type CompetitionKind = 'cup' | 'continental' | 'national';
 
 /** Formato de la competición. */
 export type CompetitionFormat = 'knockout' | 'groups' | 'league';

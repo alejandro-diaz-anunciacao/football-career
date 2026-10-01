@@ -1,5 +1,6 @@
 import type { CareerState, SquadRole } from '../../models';
 import { windowForRound } from '../../engine/calendar';
+import { careerService } from '../../services/careerService';
 import { formatGameDate } from '../../utils/date';
 import { el } from '../dom';
 import { badge } from './card';
@@ -18,6 +19,7 @@ const NAV_ITEMS: readonly { id: string; label: string }[] = [
   { id: 'match', label: 'Partido' },
   { id: 'table', label: 'Clasificación' },
   { id: 'competitions', label: 'Competiciones' },
+  { id: 'national', label: 'Selección' },
   { id: 'market', label: 'Mercado' },
   { id: 'history', label: 'Historial' },
   { id: 'saves', label: 'Partidas' },
@@ -69,6 +71,7 @@ export function renderHeader(options: HeaderOptions): HTMLElement {
           badge(`OVR ${state.player.ovr}`, 'azure'),
           role ? badge(role, role === 'Titular' ? 'accent' : role === 'Suplente' ? 'flame' : '') : null,
           openWindow ? badge('Mercado abierto', 'gold') : null,
+          careerService.isCalledUp() ? badge('Selección', 'gold') : null,
           el('span', { class: 'text-dim', text: `T${state.season} · ${formatGameDate(state.calendar)}` }),
         )
       : el('span', { class: 'text-dim', text: 'Sin partida activa' }),
