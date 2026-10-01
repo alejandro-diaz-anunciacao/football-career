@@ -200,6 +200,22 @@ export interface Contract {
   releaseClause: number;
 }
 
+/**
+ * Cesión temporal a otro club. Mientras está activa, `contract` apunta al club
+ * cedente para el que juega el futbolista, y este objeto conserva el club
+ * propietario y su salario para restaurarlos al terminar la temporada.
+ */
+export interface Loan {
+  /** Club donde se juega la cesión. */
+  teamId: string;
+  /** Club propietario al que se regresa. */
+  parentTeamId: string;
+  /** Salario del contrato original, que se restaura al volver. */
+  parentWage: number;
+  /** Temporada en la que expira la cesión (inclusive). */
+  endSeason: number;
+}
+
 /** Entidad central: el futbolista. */
 export interface Player {
   id: string;
@@ -234,6 +250,8 @@ export interface Player {
   seasonStats: PlayerSeasonStats;
   careerStats: PlayerSeasonStats;
   contract: Contract;
+  /** Cesión activa, o null si el futbolista pertenece a su club actual. */
+  loan: Loan | null;
 }
 
 /** ¿Está disponible para jugar? */

@@ -99,6 +99,47 @@
   color: var(--accent);
 }
 
+/* --- Selector de club de debut ------------------------------------------ */
+.debut-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-2);
+}
+
+.debut-option {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-700);
+  color: var(--text-200);
+  transition: all var(--speed) var(--ease);
+}
+
+.debut-option:hover {
+  border-color: var(--accent);
+  color: var(--text-100);
+}
+
+.debut-option.is-selected {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.debut-option__stats {
+  display: flex;
+  gap: var(--space-4);
+}
+
+@media (max-width: 560px) {
+  .debut-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .save-slot {
   display: flex;
   align-items: center;

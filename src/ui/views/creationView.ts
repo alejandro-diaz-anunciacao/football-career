@@ -5,6 +5,7 @@ import type { PlayerCreationInput } from '../../services/playerFactory';
 import { careerService } from '../../services/careerService';
 import { el, replace } from '../dom';
 import { card, kv } from '../components/card';
+import { debutPicker } from '../components/debutPicker';
 import type { ViewContext, ViewFactory } from './types';
 
 /** Descripción de cada posición para el selector. */
@@ -45,13 +46,31 @@ export const creationView: ViewFactory = (ctx: ViewContext) => {
     replace(
       debutInfo,
       tier
-        ? `Debutarás en ${tier.name} (${tier.country}, ${tier.tier}ª categoría) con un equipo modesto de la zona baja.`
+        ? `Debutarás en ${tier.name} (${tier.country}, ${tier.tier}ª categoría). Elige entre los clubes candidatos.`
         : 'Selecciona una nacionalidad para conocer tu liga de debut.',
     );
   };
 
-  countrySelect.addEventListener('change', updateDebutInfo);
+  /** Ficha actual del formulario, usada para calcular los clubes candidatos. */
+  const currentInput = (): PlayerCreationInput => ({
+    firstName: firstNameInput.value,
+    lastName: lastNameInput.value,
+    countryCode: countrySelect.value,
+    position,
+    number: Number(numberInput.value) || 10,
+    foot: footSelect.value as Foot,
+  });
+
+  const picker = debutPicker();
+
+  const handleFormChange = (): void => {
+    updateDebutInfo();
+    picker.refresh(currentInput());
+  };
+
+  countrySelect.addEventListener('change', handleFormChange);
   updateDebutInfo();
+  picker.refresh(currentInput());
 
   const positionRow = el('div', { class: 'position-picker' });
   const renderPositions = (): void => {
@@ -67,6 +86,7 @@ export const creationView: ViewFactory = (ctx: ViewContext) => {
               click: () => {
                 position = option.id;
                 renderPositions();
+                picker.refresh(currentInput());
               },
             },
           },
@@ -83,15 +103,7 @@ export const creationView: ViewFactory = (ctx: ViewContext) => {
     text: '▶ Comenzar carrera',
     on: {
       click: () => {
-        const input: PlayerCreationInput = {
-          firstName: firstNameInput.value,
-          lastName: lastNameInput.value,
-          countryCode: countrySelect.value,
-          position,
-          number: Number(numberInput.value) || 10,
-          foot: footSelect.value as Foot,
-        };
-        careerService.createCareer(input);
+        careerService.createCareer(currentInput(), picker.choice());
         ctx.navigate('dashboard');
       },
     },
@@ -192,6 +204,16 @@ export const creationView: ViewFactory = (ctx: ViewContext) => {
             positionRow,
           ),
           debutInfo,
+          el(
+            'div',
+            { class: 'field' },
+            el('span', { class: 'field__label', text: 'Elige tu club de debut' }),
+            picker.element,
+            el('span', {
+              class: 'text-dim',
+              text: 'Los clubes más modestos te garantizan minutos; los más fuertes, más prestigio y competencia.',
+            }),
+          ),
           el(
             'div',
             { class: 'row row--between' },

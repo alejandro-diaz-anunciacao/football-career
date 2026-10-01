@@ -100,6 +100,7 @@ export function createPlayer(input: PlayerCreationInput, rng: Random): Player {
       signedSeason: 1,
       releaseClause: 0,
     },
+    loan: null,
   };
 
   // Plan de desarrollo del primer curso.

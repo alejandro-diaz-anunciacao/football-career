@@ -82,6 +82,11 @@ La pantalla **Partidas** (`#/saves`) permite tener hasta **12 carreras simultán
 | **Eliminar** | Borra la partida (con confirmación); si era la activa, se cierra la sesión |
 | **Borrar todas** | Vacía el almacenamiento |
 
+Al crear una carrera —o al **reiniciar** una— eliges entre **4 clubes candidatos** de
+la categoría más baja, con su media, su prestigio y el **rol previsto** (titular,
+rotación o sin minutos): los clubes más modestos te garantizan minutos y los más
+fuertes ofrecen más escaparate y más competencia.
+
 Cada ranura guarda solo metadatos ligeros en el índice (`slots:v1`) y su estado completo
 en `slot:<id>:v1`, de modo que el listado se pinta sin deserializar cientos de KB y **nunca
 expone el potencial oculto**. El calendario se serializa en formato compacto
@@ -113,6 +118,9 @@ crecer jornada a jornada.
    progresivo desde los 30, que castiga antes el ritmo y el físico que la técnica.
 6. **El potencial es un techo duro.** Al alcanzarlo el futbolista deja de crecer, y el
    informe lo refleja.
+7. **Sin minutos también se crece.** Un futbolista que entrena pero no juega reparte
+   una fracción pequeña e intermitente de su objetivo, de modo que nunca queda
+   atrapado sin poder mejorar.
 
 ## 🧠 Cómo funciona la simulación
 
@@ -139,6 +147,15 @@ se recalcula por completo: calendarios, tablas y mercado.
 ataque, el mediocampo y la defensa del equipo en el partido, de forma proporcional a su
 rol (titular, suplente o no convocado) — por eso un crack acaba arrastrando a su club
 hacia arriba en la tabla.
+
+**Rol y minutos.** El cuerpo técnico concede un margen amplio de rotación y premia la
+proyección de las promesas jóvenes, así que un futbolista algo por debajo del nivel del
+club sigue sumando minutos en vez de quedar condenado al banquillo.
+
+**Mercado y cesiones.** Las ofertas llegan de clubes donde **vas a jugar** (titular o
+rotación) y no superan un salto de nivel razonable para tu edad; solo de forma excepcional
+aparece una oferta ambiciosa de un club mayor. Si no tienes minutos, puedes **pedir una
+cesión** a un club donde serías titular y regresar a tu equipo al final de la temporada.
 
 **Persistencia.** Todo el estado (`CareerState`) se serializa en `localStorage` bajo una
 clave versionada e incluye el estado del RNG, de modo que la partida guardada es

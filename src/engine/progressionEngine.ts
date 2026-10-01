@@ -211,7 +211,6 @@ export function applyDevelopmentTick(
 
   if (remaining === 0) return null;
   if (remaining > 0 && player.ovr >= player.potential) return null;
-  if (stats.appearances === 0) return null;
 
   let chunk = Math.round(remaining * p.DEVELOPMENT_CHUNK);
   if (Math.abs(chunk) < 1) chunk = remaining > 0 ? 1 : -1;
@@ -219,7 +218,15 @@ export function applyDevelopmentTick(
 
   const avg = averageRating(stats);
   const performance = clamp(1 + (avg - p.NEUTRAL_RATING) * p.DEVELOPMENT_PERFORMANCE, 0.55, 1.45);
-  const points = Math.round(chunk * performance);
+  let points = Math.round(chunk * performance);
+
+  // Sin minutos el avance existe, pero es pequeño e intermitente: quien entrena
+  // progresa despacio y puede acabar ganándose oportunidades.
+  if (stats.appearances === 0) {
+    points = Math.round(points * p.TRAINING_ONLY_FACTOR);
+    if (points === 0 && rng.chance(p.TRAINING_ONLY_FACTOR)) points = remaining > 0 ? 1 : -1;
+  }
+
   if (points === 0) return null;
 
   const before = player.ovr;

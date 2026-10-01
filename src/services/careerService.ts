@@ -30,7 +30,8 @@ import type {
 } from '../models';
 import { currentStandings, fixtureForTeam, fixturesOfRound, positionOf, processCountryPyramid, resetLeagueForSeason, applyFixtureResult, type MovementLog } from '../engine/leagueManager';
 import { MatchSimulation, marketValue, simulateQuickMatch, suggestedWage } from '../engine/matchEngine';
-import { generateOffers, chooseDebutTeam } from '../engine/marketEngine';
+import { generateLoanOffers, generateOffers, chooseDebutTeam } from '../engine/marketEngine';
+import { projectRole } from '../engine/roleEngine';
 import {
   agePlayer,
   applyDevelopmentTick,
@@ -53,6 +54,26 @@ let state: CareerState | null = null;
 
 /** Ranura activa (null si no hay partida cargada). */
 let activeSlotId: string | null = null;
+
+/** Club candidato para empezar la carrera. */
+export interface DebutOption {
+  teamId: string;
+  teamName: string;
+  teamShort: string;
+  leagueId: string;
+  leagueName: string;
+  tier: number;
+  overall: number;
+  reputation: number;
+  /** Rol previsto en ese club con tu media inicial. */
+  role: SquadRole;
+}
+
+/** Elección de club de debut (semilla + club) reutilizada al crear la carrera. */
+export interface DebutChoice {
+  seed: number;
+  teamId: string;
+}
 
 /** Acceso controlado al estado (lanza si no hay carrera activa). */
 function requireState(): CareerState {
@@ -146,19 +167,8 @@ function squadRole(): SquadRole {
   const team = currentTeam();
   if (!current || !team) return SquadRole.NotCalled;
 
-  const player = current.player;
-  if (player.injuryWeeks > 0 || player.fitness < 40) return SquadRole.NotCalled;
-
   const squad = getSquad(team);
-  const rivals = squad
-    .filter((member) => member.position === player.position)
-    .sort((a, b) => b.ovr - a.ovr);
-  const bestOvr = rivals[0]?.ovr ?? 42;
-
-  const effective = player.ovr + player.form * 2.2;
-  if (effective >= bestOvr - 1.5) return SquadRole.Starter;
-  if (effective >= bestOvr - 6.5) return SquadRole.Bench;
-  return SquadRole.NotCalled;
+  return projectRole(current.player, team, squad).role;
 }
 
 /* ---------------------------------------------------- Gestión de partidas */
@@ -198,14 +208,11 @@ function deleteSlot(slotId: string): void {
  * posición, dorsal y pie) pero empezando de cero: nueva semilla, 16 años, nueva
  * media inicial, nuevo potencial oculto y nuevo club de debut.
  */
-function restartSlot(slotId: string): CareerState | null {
+/** Identidad del futbolista de una partida, para reiniciarla conservándola. */
+function restartIdentity(slotId: string): PlayerCreationInput | null {
   const previous = slotId === activeSlotId && state ? state : storageService.loadSlot(slotId);
-  if (!previous) {
-    notify('No se pudo reiniciar: la partida no existe.', 'danger');
-    return null;
-  }
-
-  const input: PlayerCreationInput = {
+  if (!previous) return null;
+  return {
     firstName: previous.player.firstName,
     lastName: previous.player.lastName,
     countryCode: previous.player.countryCode,
@@ -213,8 +220,16 @@ function restartSlot(slotId: string): CareerState | null {
     number: previous.player.number,
     foot: previous.player.foot,
   };
+}
 
-  const restarted = buildCareer(input, slotId);
+function restartSlot(slotId: string, choice: DebutChoice | null = null): CareerState | null {
+  const input = restartIdentity(slotId);
+  if (!input) {
+    notify('No se pudo reiniciar: la partida no existe.', 'danger');
+    return null;
+  }
+
+  const restarted = buildCareer(input, slotId, choice);
   notify(`Nueva carrera de ${restarted.player.name}`, 'success');
   return restarted;
 }
@@ -235,16 +250,80 @@ function initStorage(): void {
 /* -------------------------------------------------------------- Crear carrera */
 
 /** Inicia una carrera nueva desde los datos del formulario. */
-function createCareer(input: PlayerCreationInput): CareerState {
-  return buildCareer(input, null);
+function createCareer(input: PlayerCreationInput, choice: DebutChoice | null = null): CareerState {
+  return buildCareer(input, null, choice);
+}
+
+/**
+ * Clubes candidatos para empezar la carrera, con el rol previsto en cada uno.
+ * Reutiliza una semilla concreta para que lo mostrado coincida con el mundo que
+ * se crea después si el jugador elige uno de estos clubes.
+ */
+function debutOptions(input: PlayerCreationInput): { seed: number; options: DebutOption[] } {
+  const seed = randomSeed();
+  const world = buildWorld(new Random(seed));
+  const previewPlayer = createPlayer(input, new Random(seed));
+
+  const debutDef = bottomTierOf(input.countryCode) ?? LEAGUE_DEFS[LEAGUE_DEFS.length - 1];
+  const league = world.leagues[debutDef.id];
+  if (!league) return { seed, options: [] };
+
+  // De más modesto a más fuerte, con el rol real calculado sobre la plantilla.
+  const ordered = [...league.teamIds]
+    .reverse()
+    .map((id) => world.teams[id])
+    .filter((team): team is Team => Boolean(team));
+  const ranked = ordered.map((team) => ({
+    team,
+    role: projectRole(previewPlayer, team, getSquad(team)).role,
+  }));
+
+  const playable = ranked.filter((entry) => entry.role !== SquadRole.NotCalled);
+  const source = playable.length >= CONFIG.CAREER.DEBUT_OPTIONS ? playable : ranked;
+
+  const options = pickSpread(source, CONFIG.CAREER.DEBUT_OPTIONS).map(({ team, role }) => ({
+    teamId: team.id,
+    teamName: team.name,
+    teamShort: team.short,
+    leagueId: league.id,
+    leagueName: league.name,
+    tier: league.tier,
+    overall: team.overall,
+    reputation: team.reputation,
+    role,
+  }));
+
+  return { seed, options };
+}
+
+/** Reparte `count` elementos a lo largo de una lista ordenada (sin repetir). */
+function pickSpread<T>(items: T[], count: number): T[] {
+  if (items.length === 0 || count <= 0) return [];
+  if (items.length <= count) return [...items];
+
+  const picked: T[] = [];
+  const used = new Set<number>();
+  for (let i = 0; i < count; i += 1) {
+    const index = Math.round((i * (items.length - 1)) / (count - 1));
+    if (!used.has(index)) {
+      used.add(index);
+      picked.push(items[index]);
+    }
+  }
+  return picked;
 }
 
 /**
  * Construye una carrera completa. Si se pasa `slotId`, sobrescribe esa ranura
- * (usado por el reinicio); si no, reserva una nueva.
+ * (usado por el reinicio); si no, reserva una nueva. `choice` fija el club de
+ * debut y la semilla elegidos en el selector.
  */
-function buildCareer(input: PlayerCreationInput, slotId: string | null): CareerState {
-  const seed = randomSeed();
+function buildCareer(
+  input: PlayerCreationInput,
+  slotId: string | null,
+  choice: DebutChoice | null = null,
+): CareerState {
+  const seed = choice?.seed ?? randomSeed();
   const worldRng = new Random(seed);
   const world = buildWorld(worldRng);
   rng.state = seed;
@@ -253,7 +332,9 @@ function buildCareer(input: PlayerCreationInput, slotId: string | null): CareerS
 
   const debutDef = bottomTierOf(input.countryCode) ?? LEAGUE_DEFS[LEAGUE_DEFS.length - 1];
   const debutLeague = world.leagues[debutDef.id];
-  const debutTeamId = chooseDebutTeam(debutLeague, rng);
+  const chosenTeamId = choice?.teamId;
+  const debutTeamId =
+    chosenTeamId && world.teams[chosenTeamId] ? chosenTeamId : chooseDebutTeam(debutLeague, rng);
   const debutTeam = world.teams[debutTeamId];
 
   player.contract = {
@@ -636,6 +717,22 @@ function finishSeason(): SeasonSummary {
     current.currentRound,
   );
 
+  // Fin de cesión: el futbolista regresa a su club propietario antes del mercado.
+  if (player.loan && current.season >= player.loan.endSeason) {
+    const parent = current.teams[player.loan.parentTeamId];
+    current.teamId = player.loan.parentTeamId;
+    player.contract.teamId = player.loan.parentTeamId;
+    player.contract.wage = player.loan.parentWage;
+    pushMessage(
+      MessageKind.Info,
+      'Fin de la cesión',
+      `${player.name} regresa a ${parent?.name ?? 'su club'} tras su cesión.`,
+      current.season,
+      current.currentRound,
+    );
+    player.loan = null;
+  }
+
   // Mercado y contrato.
   const offers = generateOffers(current.teams, current.leagues, player, rng);
   current.offers = offers;
@@ -646,7 +743,7 @@ function finishSeason(): SeasonSummary {
     pushMessage(
       MessageKind.Info,
       'Renovación automática',
-      `${team?.name ?? 'El club'} ejecuta la renovación por dos temporadas más.`,
+      `${currentTeam()?.name ?? 'El club'} ejecuta la renovación por dos temporadas más.`,
       current.season,
       current.currentRound,
     );
@@ -655,7 +752,7 @@ function finishSeason(): SeasonSummary {
     pushMessage(
       MessageKind.Offer,
       `${offers.length} oferta(s) sobre la mesa`,
-      'Hay clubes interesados en tu fichaje. Revisa el mercado para decidir tu futuro.',
+      'Hay clubes interesados en tu fichaje o en una cesión. Revisa el mercado para decidir tu futuro.',
       current.season,
       current.currentRound,
       offers.map((offer) => ({ id: offer.id, label: `Aceptar ${offer.teamName}`, kind: 'accept' as const })),
@@ -702,7 +799,7 @@ function finishSeason(): SeasonSummary {
 
 /* ---------------------------------------------------------------- Mercado */
 
-/** Acepta una oferta de fichaje y cambia al jugador de club. */
+/** Acepta una oferta de fichaje o de cesión y cambia al jugador de club. */
 function acceptOffer(offerId: string): boolean {
   const current = requireState();
   const offer = current.offers.find((item) => item.id === offerId);
@@ -713,7 +810,36 @@ function acceptOffer(offerId: string): boolean {
   const player = current.player;
   const previousTeam = current.teams[current.teamId];
 
+  if (offer.kind === 'loan') {
+    // Cesión: se conserva el contrato original y se guarda el club propietario.
+    const parentTeamId = current.teamId;
+    player.loan = {
+      teamId: team.id,
+      parentTeamId,
+      parentWage: player.contract.wage,
+      endSeason: current.season + 1,
+    };
+    current.teamId = team.id;
+    player.contract.teamId = team.id;
+    player.contract.wage = offer.wage;
+    player.morale = Math.min(100, player.morale + 5);
+    current.offers = current.offers.filter((item) => item.id !== offerId);
+
+    pushMessage(
+      MessageKind.Transfer,
+      'Cesión confirmada',
+      `${player.name} se marcha cedido a ${team.name} (${offer.leagueName}) durante una temporada. Al terminar regresará a ${previousTeam?.name ?? 'su club'}.`,
+      current.season,
+      current.currentRound,
+    );
+
+    persist();
+    notify(`Cedido a ${team.name}`, 'success');
+    return true;
+  }
+
   current.teamId = team.id;
+  player.loan = null;
   player.contract = {
     teamId: team.id,
     wage: offer.wage,
@@ -735,6 +861,34 @@ function acceptOffer(offerId: string): boolean {
   persist();
   notify(`Fichas por ${team.name}`, 'success');
   return true;
+}
+
+/**
+ * Solicita ofertas de cesión a mitad de temporada. Pensado para un futbolista
+ * sin minutos que busca jugar en un club donde sería titular.
+ */
+function requestLoan(): number {
+  const current = requireState();
+  const player = current.player;
+
+  if (player.loan) {
+    notify('Ya estás cedido esta temporada.', 'warning');
+    return 0;
+  }
+
+  const generated = generateLoanOffers(current.teams, current.leagues, player, rng, CONFIG.MARKET.MAX_LOAN_OFFERS);
+  const known = new Set(current.offers.map((item) => `${item.kind}:${item.teamId}`));
+  const fresh = generated.filter((item) => !known.has(`${item.kind}:${item.teamId}`));
+
+  current.offers = [...current.offers, ...fresh].slice(0, CONFIG.MARKET.MAX_ACTIVE_OFFERS);
+  persist();
+
+  if (fresh.length === 0) {
+    notify('Ningún club ha pedido tu cesión por ahora.', 'info');
+  } else {
+    notify(`${fresh.length} club(es) te quieren cedido.`, 'success');
+  }
+  return fresh.length;
 }
 
 /** Descarta todas las ofertas disponibles. */
@@ -776,6 +930,9 @@ export const careerService = {
 
   createCareer,
 
+  /** Clubes candidatos para elegir dónde empezar la carrera. */
+  debutOptions,
+
   /** Migra el guardado antiguo y lista las partidas disponibles. */
   listSlots,
   initStorage,
@@ -802,6 +959,9 @@ export const careerService = {
 
   /** Reinicia una partida conservando la identidad del futbolista. */
   restartSlot,
+
+  /** Identidad guardada (nombre, país, posición, dorsal y pie) de una partida. */
+  restartIdentity,
 
   /** Borra todas las partidas guardadas. */
   clearAllSlots,
@@ -837,6 +997,7 @@ export const careerService = {
   finishSeason,
   acceptOffer,
   rejectOffers,
+  requestLoan,
   markAllMessagesRead,
   setTrainingFocus,
 

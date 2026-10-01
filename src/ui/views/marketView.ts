@@ -1,9 +1,18 @@
 import { marketValue, suggestedWage } from '../../engine/matchEngine';
 import { interestedTeams } from '../../engine/marketEngine';
+import { SquadRole } from '../../models';
 import { careerService } from '../../services/careerService';
+import { notify } from '../../services/eventBus';
 import { el, fmt, fmtMoney, fmtWage } from '../dom';
 import { badge, card, emptyState, kv } from '../components/card';
 import type { ViewContext, ViewFactory } from './types';
+
+/** Etiqueta legible del rol previsto en una oferta. */
+const ROLE_LABEL: Record<SquadRole, string> = {
+  [SquadRole.Starter]: 'Titular',
+  [SquadRole.Bench]: 'Rotación',
+  [SquadRole.NotCalled]: 'Sin minutos',
+};
 
 /** Vista del mercado de fichajes. */
 export const marketView: ViewFactory = (ctx: ViewContext) => {
@@ -16,87 +25,117 @@ export const marketView: ViewFactory = (ctx: ViewContext) => {
   const value = marketValue(player);
   const currentTeam = careerService.currentTeam();
 
+  const role = careerService.squadRole();
+  const canRequestLoan = !player.loan && role !== SquadRole.Starter;
+
   const offersCard = card({
     title: '💼 Ofertas recibidas',
-    subtitle: state.offers.length > 0 ? 'Aceptar una oferta te traspasa de inmediato' : 'Sin ofertas por ahora',
+    subtitle:
+      state.offers.length > 0
+        ? 'Aceptar una oferta cambia tu club de inmediato'
+        : 'Sin ofertas por ahora',
     accent: state.offers.length > 0,
-    body:
+    body: [
       state.offers.length === 0
-        ? [
-            emptyState(
-              'Ningún club ha presentado una oferta. Sigue rindiendo y las propuestas llegarán al final de temporada.',
-            ),
-          ]
-        : [
-            el(
-              'div',
-              { class: 'grid grid--2' },
-              ...state.offers.map((offer) =>
+        ? emptyState(
+            'Ningún club ha presentado una oferta. Sigue rindiendo y las propuestas llegarán al final de temporada.',
+          )
+        : el(
+            'div',
+            { class: 'grid grid--2' },
+            ...state.offers.map((offer) => {
+              const clubOverall = state.teams[offer.teamId]?.overall ?? 0;
+              const isLoan = offer.kind === 'loan';
+              return el(
+                'article',
+                { class: 'offer-card' },
                 el(
-                  'article',
-                  { class: 'offer-card' },
+                  'div',
+                  { class: 'row row--between' },
                   el(
                     'div',
-                    { class: 'row row--between' },
-                    el(
-                      'div',
-                      { class: 'stack', attrs: { style: 'gap:2px' } },
-                      el('strong', { text: offer.teamName }),
-                      el('span', { class: 'text-dim', text: `${offer.leagueName} · ${offer.tier}ª categoría · ${offer.continent}` }),
-                    ),
-                    badge(`${offer.years} años`, 'azure'),
+                    { class: 'stack', attrs: { style: 'gap:2px' } },
+                    el('strong', { text: offer.teamName }),
+                    el('span', { class: 'text-dim', text: `${offer.leagueName} · ${offer.tier}ª categoría · ${offer.continent}` }),
                   ),
                   el(
                     'div',
-                    { class: 'offer-card__terms' },
-                    kv('Salario', fmtWage(offer.wage)),
-                    kv('Prima', fmtMoney(offer.fee)),
-                    kv('Diferencia OVR', `${state.teams[offer.teamId]?.overall ?? '—'}`),
-                  ),
-                  el('p', { class: 'text-muted', text: offer.pitch }),
-                  el(
-                    'div',
-                    { class: 'row row--tight offer-card__actions' },
-                    el('button', {
-                      class: 'btn btn--primary btn--sm',
-                      text: '✔ Aceptar',
-                      on: {
-                        click: () => {
-                          careerService.acceptOffer(offer.id);
-                          ctx.refresh();
-                        },
-                      },
-                    }),
-                    el('button', {
-                      class: 'btn btn--ghost btn--sm',
-                      text: 'Descartar',
-                      on: {
-                        click: () => {
-                          state.offers = state.offers.filter((item) => item.id !== offer.id);
-                          careerService.save();
-                          ctx.refresh();
-                        },
-                      },
-                    }),
+                    { class: 'row row--tight' },
+                    badge(isLoan ? 'Préstamo' : 'Traspaso', isLoan ? 'flame' : 'azure'),
+                    badge(`${offer.years} año(s)`, ''),
                   ),
                 ),
-              ),
-            ),
-            el(
-              'div',
-              { class: 'row' },
-              el('button', {
-                class: 'btn btn--danger btn--sm',
-                text: 'Rechazar todas',
-                on: {
-                  click: () => {
-                    careerService.rejectOffers();
-                    ctx.refresh();
-                  },
+                el(
+                  'div',
+                  { class: 'offer-card__terms' },
+                  kv('Salario', fmtWage(offer.wage)),
+                  kv('Prima', isLoan ? 'Sin coste' : fmtMoney(offer.fee)),
+                  kv('Nivel del club', `${clubOverall} (${clubOverall - player.ovr >= 0 ? '+' : ''}${clubOverall - player.ovr})`),
+                  kv('Rol previsto', ROLE_LABEL[offer.projectedRole]),
+                ),
+                el('p', { class: 'text-muted', text: offer.pitch }),
+                el(
+                  'div',
+                  { class: 'row row--tight offer-card__actions' },
+                  el('button', {
+                    class: 'btn btn--primary btn--sm',
+                    text: isLoan ? '✔ Aceptar cesión' : '✔ Aceptar',
+                    on: {
+                      click: () => {
+                        careerService.acceptOffer(offer.id);
+                        ctx.refresh();
+                      },
+                    },
+                  }),
+                  el('button', {
+                    class: 'btn btn--ghost btn--sm',
+                    text: 'Descartar',
+                    on: {
+                      click: () => {
+                        state.offers = state.offers.filter((item) => item.id !== offer.id);
+                        careerService.save();
+                        ctx.refresh();
+                      },
+                    },
+                  }),
+                ),
+              );
+            }),
+          ),
+      el(
+        'div',
+        { class: 'row row--tight' },
+        canRequestLoan
+          ? el('button', {
+              class: 'btn btn--sm',
+              text: '🤝 Pedir cesión',
+              title: 'Busca clubes donde serías titular y jugarías más minutos',
+              on: {
+                click: () => {
+                  const count = careerService.requestLoan();
+                  notify(
+                    count > 0 ? `Se han añadido ${count} oferta(s) de cesión.` : 'Ningún club ha pedido tu cesión por ahora.',
+                    count > 0 ? 'success' : 'info',
+                  );
+                  ctx.refresh();
                 },
-              }),
-            ),
-          ],
+              },
+            })
+          : null,
+        state.offers.length > 0
+          ? el('button', {
+              class: 'btn btn--danger btn--sm',
+              text: 'Rechazar todas',
+              on: {
+                click: () => {
+                  careerService.rejectOffers();
+                  ctx.refresh();
+                },
+              },
+            })
+          : null,
+      ),
+    ],
   });
 
   const interested = interestedTeams(state.teams, player).slice(0, 8);

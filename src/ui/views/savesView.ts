@@ -4,6 +4,7 @@ import type { SaveSlot } from '../../services/storageService';
 import { careerService } from '../../services/careerService';
 import { el, fmt, fmtRelativeTime } from '../dom';
 import { badge, card, emptyState } from '../components/card';
+import { debutPicker } from '../components/debutPicker';
 import { openModal } from '../components/modal';
 import { notify } from '../../services/eventBus';
 import type { ViewContext, ViewFactory } from './types';
@@ -37,13 +38,26 @@ function slotCard(slot: SaveSlot, active: boolean, ctx: ViewContext): HTMLElemen
     title: 'Empieza de cero conservando nombre, país, posición, dorsal y pie',
     on: {
       click: () => {
+        const identity = careerService.restartIdentity(slot.id);
+        if (!identity) {
+          notify('No se pudo reiniciar: la partida no existe.', 'danger');
+          return;
+        }
+        const picker = debutPicker();
+        picker.refresh(identity);
         openModal({
           title: 'Reiniciar carrera',
           body: [
             el('p', {
-              text: `Se borrará el progreso de ${slot.playerName} (temporada ${slot.season}, ${slot.ovr} de media) y volverá a empezar con 16 años y una nueva media inicial y potencial.`,
+              text: `Se borrará el progreso de ${slot.playerName} y empezará de cero con 16 años, una nueva media inicial y un nuevo potencial.`,
             }),
             el('p', { class: 'text-muted', text: 'Se conservan el nombre, la nacionalidad, la posición, el dorsal y el pie dominante.' }),
+            el(
+              'div',
+              { class: 'field' },
+              el('span', { class: 'field__label', text: 'Elige tu club de debut' }),
+              picker.element,
+            ),
           ],
           actions: [
             { label: 'Cancelar', kind: 'ghost' },
@@ -51,7 +65,7 @@ function slotCard(slot: SaveSlot, active: boolean, ctx: ViewContext): HTMLElemen
               label: 'Reiniciar',
               kind: 'danger',
               onClick: () => {
-                if (careerService.restartSlot(slot.id)) ctx.navigate('dashboard');
+                if (careerService.restartSlot(slot.id, picker.choice())) ctx.navigate('dashboard');
                 else ctx.refresh();
               },
             },

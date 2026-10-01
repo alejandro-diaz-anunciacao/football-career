@@ -1,5 +1,5 @@
 import { CONFIG } from '../data/config';
-import { emptySeasonGrowth } from '../models';
+import { SquadRole, emptySeasonGrowth } from '../models';
 import type { CareerState, Fixture, League, Player, Position } from '../models';
 import { DEFAULT_FOCUS } from '../engine/progressionEngine';
 
@@ -336,12 +336,20 @@ export const storageService = {
     if (!Array.isArray(migrated.trophies)) migrated.trophies = [];
     if (!Array.isArray(migrated.history)) migrated.history = [];
 
+    // Rellena los campos de mercado añadidos después de la versión inicial.
+    migrated.offers = migrated.offers.map((offer) => ({
+      ...offer,
+      kind: offer.kind ?? 'transfer',
+      projectedRole: offer.projectedRole ?? SquadRole.NotCalled,
+    }));
+
     // Rellena los campos de desarrollo añadidos después de la versión inicial.
     const player = migrated.player as Player | undefined;
     if (player) {
       player.trainingFocus = player.trainingFocus ?? DEFAULT_FOCUS[player.position] ?? 'passing';
       player.seasonGrowth = player.seasonGrowth ?? emptySeasonGrowth(player.ovr);
       player.lastGrowth = player.lastGrowth ?? null;
+      player.loan = player.loan ?? null;
     }
 
     migrated.version = CONFIG.CAREER.SAVE_VERSION;

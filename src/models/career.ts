@@ -1,4 +1,4 @@
-import { MessageKind, SeasonPhase } from './enums';
+import { MessageKind, SeasonPhase, SquadRole } from './enums';
 import type { League } from './league';
 import type { MatchResult } from './match';
 import type { Player } from './player';
@@ -73,6 +73,10 @@ export interface TransferOffer {
   fee: number;
   /** Valoración del club sobre el jugador (texto). */
   pitch: string;
+  /** Traspaso definitivo o cesión temporal. */
+  kind: 'transfer' | 'loan';
+  /** Rol previsto en el club que presenta la oferta. */
+  projectedRole: SquadRole;
 }
 
 /** Estado completo de la carrera, serializable en localStorage. */

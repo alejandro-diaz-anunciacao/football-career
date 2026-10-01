@@ -38,6 +38,29 @@ export const CONFIG = {
     } as const,
   },
 
+  /**
+   * Rol en la plantilla. La banda de minutos es generosa a propósito: un
+   * futbolista algo por debajo del mejor rival de su posición debe poder sumar
+   * minutos de rotación en vez de quedar condenado al banquillo.
+   */
+  SQUAD: {
+    /** Margen sobre el mejor rival de la posición para ser titular. */
+    STARTER_GAP: 2,
+    /** Margen para entrar en la rotación (tener minutos). */
+    BENCH_GAP: 9,
+    /** Edad máxima para sumar el bonus de promesa. */
+    PROMISE_MAX_AGE: 21,
+    /** Fracción del margen hasta el potencial que se suma a la confianza. */
+    PROMISE_WEIGHT: 0.35,
+    /** Tope del bonus de promesa. */
+    PROMISE_CAP: 5,
+    /** Condición física mínima para ser convocado. */
+    MIN_FITNESS: 40,
+    /** Minutos de rotación mínimos y máximos dentro de la banda de suplente. */
+    ROTATION_MIN_MINUTES: 15,
+    ROTATION_MAX_MINUTES: 60,
+  },
+
   /** Motor de progresión. */
   PROGRESSION: {
     /** Multiplicador de crecimiento por tramo de edad. */
@@ -80,18 +103,39 @@ export const CONFIG = {
     BREAKOUT_BONUS: 0.18,
     /** Edad máxima para beneficiarse de una explosión. */
     BREAKOUT_MAX_AGE: 21,
+    /**
+     * Fracción del avance parcial que progresa un jugador que entrena pero no
+     * disputa minutos. Rompe el bucle «no juego → no crezco → no juego».
+     */
+    TRAINING_ONLY_FACTOR: 0.3,
   },
 
   /** Mercado de fichajes. */
   MARKET: {
     /** OVR mínimo para recibir ofertas de un club con reputación dada. */
     REPUTATION_TOLERANCE: 7,
-    /** Número máximo de ofertas por temporada. */
+    /** Número máximo de ofertas de traspaso por temporada. */
     MAX_OFFERS: 3,
+    /** Número máximo de ofertas de cesión. */
+    MAX_LOAN_OFFERS: 2,
     /** Salario mínimo en miles de € semanales. */
     MIN_WAGE: 1,
     /** Probabilidad de que un club de interés presente oferta. */
     OFFER_CHANCE: 0.55,
+    /** Salto máximo de nivel de un club respecto a tu media (ajustado por edad). */
+    MAX_STEP_UP: 6,
+    /** Hasta cuánto por debajo de tu media puede estar un club interesado. */
+    FLOOR_GAP: 8,
+    /** Reputación mínima para que un club cuente como candidato. */
+    MIN_REPUTATION: 10,
+    /** Probabilidad de una oferta ambiciosa (club por encima de tu techo). */
+    WILDCARD_CHANCE: 0.12,
+    /** Habilita las cesiones. */
+    LOAN_ENABLED: true,
+    /** Edad máxima para solicitar una cesión por falta de minutos. */
+    LOAN_MAX_AGE: 24,
+    /** Nº máximo de ofertas activas que puede acumular el jugador. */
+    MAX_ACTIVE_OFFERS: 6,
   },
 
   /** Carrera. */
@@ -110,6 +154,8 @@ export const CONFIG = {
     SAVE_VERSION: 1,
     /** Número máximo de partidas simultáneas. */
     MAX_SLOTS: 12,
+    /** Clubes candidatos que se ofrecen para elegir el debut. */
+    DEBUT_OPTIONS: 4,
   },
 
   /** Calificación (rating) por rol. */
