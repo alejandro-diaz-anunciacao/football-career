@@ -54,7 +54,8 @@ export function projectRole(player: Player, team: Team, squad?: SquadMember[]): 
 
   const level =
     squad && squad.length > 0 ? squadPositionLevel(player, squad) : estimatedPositionLevel(team, player.position);
-  const effective = player.ovr + player.form * 2.2 + promiseBonus(player);
+  const penalty = player.rolePenalty && player.rolePenalty.matches > 0 ? player.rolePenalty.ovr : 0;
+  const effective = player.ovr + player.form * 2.2 + promiseBonus(player) - penalty;
 
   if (effective >= level - CONFIG.SQUAD.STARTER_GAP) {
     return { role: SquadRole.Starter, minutes: 90 };

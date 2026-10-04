@@ -7,6 +7,7 @@ export type { GameDate };
 import type { MatchResult } from './match';
 import type { Player } from './player';
 import type { Team } from './team';
+import type { PendingEvent } from './event';
 
 /** Resumen de una temporada finalizada. */
 export interface SeasonHistory {
@@ -120,6 +121,14 @@ export interface CareerState {
   seasonsPlayed: number;
   /** Posición final del equipo en la temporada anterior. */
   previousFinish: number | null;
+  /** Evento aleatorio pendiente de decisión del jugador. */
+  pendingEvent: PendingEvent | null;
+  /** Última jornada en la que saltó un evento (controla el cooldown). */
+  lastEventRound: number;
+  /** Eventos disparados en la temporada en curso. */
+  eventsThisSeason: number;
+  /** Temporada en la que apareció por última vez cada evento. */
+  eventHistory: Record<string, number>;
 }
 
 /** Resumen devuelto tras simular una jornada completa. */

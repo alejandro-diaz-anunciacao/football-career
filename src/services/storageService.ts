@@ -353,7 +353,14 @@ export const storageService = {
       player.lastGrowth = player.lastGrowth ?? null;
       player.loan = player.loan ?? null;
       player.nationalStats = player.nationalStats ?? emptySeasonStats();
+      player.rolePenalty = player.rolePenalty ?? null;
     }
+
+    // Eventos aleatorios: las partidas antiguas no los tenían.
+    migrated.pendingEvent = migrated.pendingEvent ?? null;
+    migrated.lastEventRound = migrated.lastEventRound ?? 0;
+    migrated.eventsThisSeason = migrated.eventsThisSeason ?? 0;
+    migrated.eventHistory = migrated.eventHistory ?? {};
 
     // Calendario: en partidas antiguas se deriva de la jornada en curso.
     migrated.calendar = migrated.calendar ?? roundDate(migrated.season, migrated.currentRound);

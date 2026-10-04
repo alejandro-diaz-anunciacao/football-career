@@ -3,6 +3,20 @@
 Simulador de carrera de futbolista: SPA **Vanilla TypeScript estricto + Vite**, sin frameworks.
 No es un repositorio git.
 
+## Regla innegociable: `memory.md` siempre al día
+
+**Tras CUALQUIER cambio** (código, datos, UI, config, arquitectura o arreglo de
+bugs) actualiza `memory.md` **en el mismo turno**, antes de dar la tarea por
+terminada. Deja reflejado:
+
+- Qué ha cambiado y por qué.
+- Archivos, campos y tipos nuevos, y su migración (si toca guardado).
+- Invariantes, reglas o trampas nuevas.
+- La fecha de la última revisión.
+
+Una tarea **no está "hecha"** hasta que `memory.md` refleja el cambio. Esta regla
+también está reforzada en la skill `feature` y en la cabecera de `memory.md`.
+
 ## Comandos
 
 ```bash

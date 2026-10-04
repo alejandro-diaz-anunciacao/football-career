@@ -71,6 +71,7 @@ export enum MessageKind {
   Squad = 'squad',
   Media = 'media',
   Transfer = 'transfer',
+  Event = 'event',
 }
 
 /** Planteamiento táctico elegido antes del partido. */

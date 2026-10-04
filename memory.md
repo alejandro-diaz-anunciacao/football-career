@@ -3,9 +3,15 @@
 Notas de contexto, decisiones técnicas y patrones del proyecto, pensadas para
 retomar el trabajo en sesiones futuras sin releer todo el código.
 
-> Generado el 2026-10-01 a partir del estado del repositorio. Este documento es
-> descriptivo: no sustituye a `AGENTS.md` (instrucciones operativas) ni a
-> `README.md` (visión de producto). Ante conflicto, mandan esos dos.
+> Última revisión: **2026-10-04**. Este documento es descriptivo: no sustituye a
+> `AGENTS.md` (instrucciones operativas) ni a `README.md` (visión de producto).
+> Ante conflicto, mandan esos dos.
+
+> ⚠️ **Regla obligatoria:** este archivo se actualiza **SIEMPRE** con cada cambio
+> (código, datos, UI, config, arquitectura o bug), en el mismo turno y antes de dar
+> la tarea por terminada. Refleja qué cambió, archivos/campos/tipos nuevos, su
+> migración, invariantes/trampas y la fecha de revisión. Lo exige `AGENTS.md` y la
+> skill `feature`; no es opcional.
 
 ---
 
@@ -14,8 +20,9 @@ retomar el trabajo en sesiones futuras sin releer todo el código.
 Simulador de carrera de futbolista (SPA de una sola página). Empiezas con 16 años
 en la categoría más baja de tu país y progresas por 26 ligas / 468 clubes (18 por
 liga) repartidos en 5 continentes y 13 países. Incluye partido interactivo minuto
-a minuto, progresión con potencial oculto, mercado de fichajes, ascensos/descensos
-y guardado de hasta 12 partidas simultáneas.
+a minuto, progresión con potencial oculto, mercado de fichajes, copas y continentales,
+selecciones nacionales, **eventos aleatorios de carrera** con decisiones, ascensos/
+descensos y guardado de hasta 12 partidas simultáneas.
 
 - **Stack:** Vanilla TypeScript estricto + Vite. Sin frameworks, sin runtime de UI.
 - **Dependencias de producción:** ninguna. Solo `devDependencies`:
@@ -137,12 +144,13 @@ acordarlo.
   - ⚠️ Si cambias la forma de `League` o `Fixture`, actualiza **ambas** funciones.
 - **Migración de campos:** `storageService.migrate(state)` rellena campos nuevos
   (`recentResults`, `offers`, `inbox`, `trophies`, `history`, `trainingFocus`,
-  `seasonGrowth`, `lastGrowth`, `player.loan`, `player.nationalStats`, `calendar`,
-  `competitions`, `nationalCompetitions`, `friendlies`, `tick`) y normaliza
-  `TransferOffer.kind`/`projectedRole` y los campos de las `Competition`
-  (`format`/`stage`/`tier`/`mainEntrants`); además actualiza `version`.
-  Al añadir un campo a `Player` o `CareerState`, **añádelo también aquí**. `tick` se
-  deriva de `currentRound` en partidas antiguas.
+  `seasonGrowth`, `lastGrowth`, `player.loan`, `player.nationalStats`,
+  `player.rolePenalty`, `calendar`, `competitions`, `nationalCompetitions`,
+  `friendlies`, `tick`, `pendingEvent`, `lastEventRound`, `eventsThisSeason`,
+  `eventHistory`) y normaliza `TransferOffer.kind`/`projectedRole` y los campos de
+  las `Competition` (`format`/`stage`/`tier`/`mainEntrants`); además actualiza
+  `version`. Al añadir un campo a `Player` o `CareerState`, **añádelo también
+  aquí**. `tick` se deriva de `currentRound` en partidas antiguas.
 - **Robustez:** en Node sin shim de `localStorage`, `storageService` traga errores
   y `loadSlot()` devuelve `null` en silencio. Para probar persistencia, define un
   shim primero.
@@ -196,6 +204,13 @@ acordarlo.
   (jornadas de liga + tandas de copa entre semana). Un avance = una tanda; el
   usuario juega como máximo un partido por tanda. `currentRound` solo avanza en
   las tandas de liga (lo usan ventanas y desarrollo).
+- **Próximo partido y auto-avance:** `careerService.nextUpcomingFixture()` recorre
+  el calendario hacia delante y devuelve el primer partido del usuario
+  (`{ context, ticksAhead }`), no solo la tanda en curso. El vestuario muestra ese
+  partido y sus botones llaman antes a `skipToNextMatch()` para consumir las tandas
+  intermedias; así desaparece el caso «no juega en esta tanda». `userFixtureAt(tick)`
+  resuelve liga, copa, continental y selección, y `resolveTeam()` mezcla clubes
+  (`state.teams`) y selecciones (`nationTeams()`).
 - **Copas y continentales:** `CareerState.competitions` guarda las `Competition` de
   copa (por país) y continental (por continente). `simulateCupTick` juega la pierna en
   curso (KO); `simulateGroupRound` la jornada de grupos; `applyUserMatch` aplica a liga,
@@ -206,7 +221,9 @@ acordarlo.
   7 jornadas) y los torneos; `friendlies` los amistosos del jugador. Las ventanas
   internacionales y los torneos son tandas `'national'` en el calendario
   (`buildSeasonSchedule`). La convocatoria (`isCalledUp`) pesa media, forma, edad y
-  competencia; las estadísticas van a `player.nationalStats`. Ciclos: **Mundial** en las
+  competencia; las estadísticas van a `player.nationalStats`. **Una tanda de selección
+  solo cuenta como partido del usuario si está convocado**; si no, se simula sin él
+  (`simulateNationalTick`) y el calendario continúa. Ciclos: **Mundial** en las
   temporadas 4/8/12… y **continentales** en 2/6/10…. La temporada cierra al consumir todas
   las tandas (`tick >= schedule.length`), no por la jornada de liga.
 - **Continentales:** `buildSeasonCompetitions` crea copas + continentales al empezar
@@ -223,6 +240,28 @@ acordarlo.
   - **Finales:** a partido único salvo `twoLeggedFinal` (CAF). `knockoutFirstTwoLegged`
     marca las primeras rondas a doble partido (AFC Elite, Concacaf).
 
+### Eventos aleatorios (subsistema)
+
+- Catálogo en `data/events.ts` (16 eventos): definiciones puras con `when`,
+  `title`, `body` y `choices`. Cada opción tiene `outcome` fijo o `risk` (probabilidad
+  dinámica según forma/nota). Ejemplos: leyenda que entrena, entrenador que no da
+  minutos (decisión), prensa, ojeadores, sobrecarga, asunto familiar, patrocinio,
+  derbi, agente, redes, nutrición, selección…
+- `engine/eventEngine.ts` es puro y recibe `Random`. Efectos soportados: `attribute`
+  (vía `applyAttributePoints`, **respeta el techo de potencial**), `stat`
+  (morale/form/fitness), `injury`, `rolePenalty`, `loanOffers` y `transferOffers`
+  (estos dos los materializa el servicio, que conoce ligas y equipos).
+- **Disparo:** `careerService.maybeTriggerEvent(round)` al cerrar cada jornada de
+  liga (`advanceAfterLeague`). Condiciones en `CONFIG.EVENTS` (probabilidad,
+  cooldown entre eventos, tope por temporada y ronda mínima). Determinista: todo con
+  `rng`; `rngState` se persiste.
+- **Decisión pendiente:** `CareerState.pendingEvent` + mensaje `MessageKind.Event`.
+  Mientras exista, el vestuario y el visor **bloquean el partido** hasta resolverlo
+  (`careerService.resolveEvent(id, choiceId)`). El desenlace se escribe en la bandeja
+  y `eventHistory[id]` guarda la temporada para el cooldown.
+- `rolePenalty` lo resta `projectRole` (menos minutos) y se decrementa cada jornada
+  de liga; se limpia al cerrar la temporada.
+
 ## 7. Modelo de dominio (resumen)
 
 - **`Player`**: atributos (7: pace, shooting, passing, dribbling, defending,
@@ -230,7 +269,8 @@ acordarlo.
   `ovrFromAttributes` (pesos por posición), `potential` oculto, `form` (−1..1),
   `morale`/`fitness` (0..100), `injuryWeeks`, `trainingFocus`, `seasonGrowth`,
   `lastGrowth`, `seasonStats`/`careerStats`/`nationalStats`, `contract`,
-  `loan` (`Loan | null`).
+  `loan` (`Loan | null`), `rolePenalty` (`RolePenalty | null`, penalizador
+  temporal de minutos que consume `projectRole`).
 - **`NationalTeam`** (`models/nation.ts`): `id` (`nat.<código>`), `name`, `code`,
   `confederation`, `strength`. `nationAsTeam` lo convierte en `Team` para el motor.
 - **`Team`**: `attack`/`midfield`/`defense`/`overall` (1-99) y `reputation` (1-100).
@@ -245,8 +285,9 @@ acordarlo.
   `twoLeggedFinal`, `pendingEntrants`, `mainEntrants`.
 - **`CareerState`**: todo el estado serializable (seed, rngState, season, phase,
   currentRound, **calendar** (`GameDate`), **tick**, player, teamId, leagues,
-  teams, **competitions**, history, trophies, inbox, offers, lastMatch,
-  recentResults, seasonsPlayed, previousFinish).
+  teams, **competitions**, **nationalCompetitions**, friendlies, history, trophies,
+  inbox, offers, lastMatch, recentResults, seasonsPlayed, previousFinish,
+  **pendingEvent**, **lastEventRound**, **eventsThisSeason**, **eventHistory**).
 - **Enums string**: `Position`, `Foot`, `Continent`, `SquadRole`, `MatchEventType`,
   `SeasonPhase`, `MessageKind`, `TacticalApproach`. Tipos: `MatchOutcome`, `TeamSide`.
 
@@ -267,6 +308,7 @@ acordarlo.
 | `progressionEngine.ts` | Plan de temporada, avances parciales (`applyDevelopmentTick`), cierre (`applySeasonGrowth`), `agePlayer`, `recoverWeekly`, `updateForm`, `mergeSeasonIntoCareer`. |
 | `leagueManager.ts` | Calendario (círculo), clasificación, ascensos/descensos (`processPromotionRelegation`, `processCountryPyramid`). |
 | `marketEngine.ts` | `interestedTeams`, `generateOffers`, `chooseDebutTeam`. |
+| `eventEngine.ts` | Eventos aleatorios: `buildEventContext`, `pickEvent` (elegibles + cooldown + sorteo ponderado), `createPendingEvent`, `resolveEvent` (rama arriesgada y efectos). Los efectos de mercado se devuelven al servicio. |
 
 ## 8. Recetas de verificación (sin test runner)
 
@@ -315,6 +357,10 @@ google-chrome --headless=new --disable-gpu --no-sandbox --remote-debugging-port=
   internacionales y clasificación/torneos de selecciones.
 - **Vista de competiciones** (`competitionsView`): selector de copa y cuadro de
   eliminatorias con las piernas y el campeón.
+- **Eventos aleatorios en la UI:** el vestuario pinta una tarjeta de decisión
+  (`eventCard`) con las opciones; `MessageKind.Event` (icono 🎲) en la bandeja.
+  Mientras hay `pendingEvent`, la ficha de próximo partido y `matchView` muestran
+  «Decisión pendiente» y no dejan jugar.
 - **Bootstrap (`ui/app.ts`):** monta cabecera + main, conecta `router.onChange`,
   escucha `state:changed` (solo cabecera) y `state:cleared` (vuelve a `creation`).
   Sin carrera activa redirige a `saves` si hay ranuras o a `creation` si no.
@@ -348,18 +394,30 @@ google-chrome --headless=new --disable-gpu --no-sandbox --remote-debugging-port=
   por país en `buildWorld`.
 - El estado del RNG global es una pieza más del guardado: cualquier operación que
   consuma `rng` afecta a la reproducibilidad.
+- ⚠️ **`memory.md` se actualiza en cada cambio** (ver cabecera y `AGENTS.md`): no
+  cierres una tarea sin reflejarla aquí.
+- ⚠️ Los eventos aleatorios consumen el `rng` global (`pickEvent` y las tiradas de
+  `risk`): no reordenes esas llamadas si quieres reproducibilidad.
+- ⚠️ Mientras exista `pendingEvent`, la UI bloquea el partido; solo
+  `careerService.resolveEvent` lo limpia, y debe persistir.
+- ⚠️ Para añadir un evento basta con declararlo en `data/events.ts` respetando el
+  vocabulario de `EventEffect`; no hay que tocar el motor.
+- 🐛 Pendiente conocido: `ui/views/marketView.ts` usa `player.potential` directamente
+  para un badge, lo que contradice la regla de potencial oculto; debería usar
+  `potentialHint()`.
 
 ## 11. Mapa de archivos
 
 ```
 src/
 ├── main.ts                     # importa main.css + bootstrap()
-├── models/                     # enums, player, team, nation, league, competition, match, career, index
+├── models/                     # enums, player, team, nation, league, competition, match,
+│                               # event, career, index
 ├── data/                       # config, continents, names, leagues, cups, continental,
-│                               # nations, nationalTournaments, worldBuilder, index
+│                               # nations, nationalTournaments, events, worldBuilder, index
 ├── engine/                     # poisson, matchEngine, ratingEngine, roleEngine, calendar,
 │                               # schedule, cupEngine, groupEngine, continentalEngine, nationalEngine,
-│                               # progressionEngine, leagueManager, marketEngine
+│                               # progressionEngine, leagueManager, marketEngine, eventEngine
 ├── services/                   # careerService (fachada), storageService, squadService,
 │                               # playerFactory, randomService, nameService, idService, eventBus
 ├── utils/                      # math, random, date

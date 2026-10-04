@@ -54,13 +54,35 @@ export const matchView: ViewFactory = (ctx: ViewContext) => {
     return el('div', { class: 'page' }, card({ title: 'Sin carrera', body: [emptyState('Crea una carrera primero.')] }));
   }
 
-  const fixture = careerService.nextFixture();
-  const team = careerService.currentTeam();
-  const rival = careerService.nextOpponent();
-  const league = careerService.currentLeague();
-  const competition = careerService.nextCompetition();
+  if (state.pendingEvent) {
+    return el(
+      'div',
+      { class: 'page' },
+      card({
+        title: 'Decisión pendiente',
+        body: [
+          emptyState('Tienes un evento aleatorio sin resolver. Toma una decisión desde el vestuario para continuar.'),
+          el(
+            'div',
+            { class: 'row' },
+            el('button', {
+              class: 'btn btn--primary',
+              text: 'Ir al vestuario',
+              on: { click: () => ctx.navigate('dashboard') },
+            }),
+          ),
+        ],
+      }),
+    );
+  }
 
-  if (!fixture || !team || !rival || !league) {
+  const context = careerService.nextUserFixture();
+  const fixture = context?.fixture ?? null;
+  const userTeam = context ? careerService.resolveTeam(context.userTeamId) : null;
+  const homeTeam = fixture ? careerService.resolveTeam(fixture.homeId) : null;
+  const awayTeam = fixture ? careerService.resolveTeam(fixture.awayId) : null;
+
+  if (!context || !fixture || !userTeam || !homeTeam || !awayTeam) {
     return el(
       'div',
       { class: 'page' },
@@ -78,9 +100,7 @@ export const matchView: ViewFactory = (ctx: ViewContext) => {
     );
   }
 
-  const homeTeam = state.teams[fixture.homeId] ?? team;
-  const awayTeam = state.teams[fixture.awayId] ?? rival;
-  const isHome = fixture.homeId === team.id;
+  const isHome = fixture.homeId === context.userTeamId;
 
   let approach: TacticalApproach = selectedApproach;
   let simulation: MatchSimulation | null = null;
@@ -330,7 +350,7 @@ export const matchView: ViewFactory = (ctx: ViewContext) => {
         minute: 0,
         type: MatchEventType.KickOff,
         side: sim.userSide,
-        teamId: team.id,
+        teamId: userTeam.id,
         playerId: null,
         playerName: '',
         description: `Comienza ${homeTeam.name} - ${awayTeam.name}.`,
@@ -340,16 +360,16 @@ export const matchView: ViewFactory = (ctx: ViewContext) => {
     );
   };
 
-  const competitionName = competition?.name ?? league.name;
+  const competitionName = context.competitionName;
   const competitionTitle =
-    competition?.kind === 'league'
-      ? `Jornada ${state.currentRound} · ${competitionName}`
+    context.kind === 'league'
+      ? `Jornada ${fixture.round} · ${competitionName}`
       : `${competitionName} · Ronda ${fixture.round}`;
 
   const buildPrematchCard = (): HTMLElement =>
     card({
     title: competitionTitle,
-    subtitle: `${homeTeam.name} vs ${awayTeam.name} · ${formatGameDate(state.calendar)}`,
+    subtitle: `${homeTeam.name} vs ${awayTeam.name} · ${formatGameDate(context.date)}`,
     accent: true,
     body: [
       el(
@@ -362,10 +382,10 @@ export const matchView: ViewFactory = (ctx: ViewContext) => {
             'div',
             { class: 'stack', attrs: { style: 'gap:4px' } },
             kv('Condición', isHome ? 'Local' : 'Visitante'),
-            kv('Tu rol', careerService.squadRole()),
+            kv('Tu rol', careerService.nextUserRole()),
             kv('Rival OVR', String((isHome ? awayTeam : homeTeam).overall)),
           ),
-          el('div', { class: 'ovr-badge ovr-badge--azure', text: String(team.overall) }),
+          el('div', { class: 'ovr-badge ovr-badge--azure', text: String(userTeam.overall) }),
         ),
         el(
           'div',
@@ -412,7 +432,7 @@ export const matchView: ViewFactory = (ctx: ViewContext) => {
         {},
         el('span', { class: 'page-head__eyebrow', text: 'Visor de partidos' }),
         el('h1', { text: `${homeTeam.short} vs ${awayTeam.short}` }),
-        el('p', { class: 'text-muted', text: `${competitionName} · ${formatGameDate(state.calendar)}` }),
+        el('p', { class: 'text-muted', text: `${competitionName} · ${formatGameDate(context.date)}` }),
       ),
       el('button', { class: 'btn btn--ghost', text: 'Salir', on: { click: () => { stopAuto(); ctx.navigate('dashboard'); } } }),
     ),

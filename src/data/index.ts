@@ -8,4 +8,5 @@ export * from './cups';
 export * from './continental';
 export * from './nations';
 export * from './nationalTournaments';
+export * from './events';
 export * from './worldBuilder';

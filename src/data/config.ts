@@ -208,6 +208,18 @@ export const CONFIG = {
     MIN: 1,
     MAX: 10,
   },
+
+  /** Eventos aleatorios de carrera. */
+  EVENTS: {
+    /** Probabilidad de que salte un evento al cerrar cada jornada de liga. */
+    CHANCE_PER_ROUND: 0.16,
+    /** Jornadas mínimas entre dos eventos. */
+    MIN_ROUND_GAP: 4,
+    /** Tope de eventos por temporada. */
+    MAX_PER_SEASON: 5,
+    /** Jornada mínima de la temporada para empezar a disparar eventos. */
+    MIN_ROUND: 3,
+  },
 } as const;
 
 /** Multiplicador de crecimiento por edad. */

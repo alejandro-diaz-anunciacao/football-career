@@ -1,5 +1,6 @@
 import { clamp } from '../utils/math';
 import { Foot, Position } from './enums';
+import type { RolePenalty } from './event';
 
 /** Atributos técnico-físicos del jugador (1-99). */
 export interface Attributes {
@@ -254,6 +255,8 @@ export interface Player {
   contract: Contract;
   /** Cesión activa, o null si el futbolista pertenece a su club actual. */
   loan: Loan | null;
+  /** Penalizador temporal de minutos decidido por el cuerpo técnico. */
+  rolePenalty: RolePenalty | null;
 }
 
 /** ¿Está disponible para jugar? */

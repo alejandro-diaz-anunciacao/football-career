@@ -28,17 +28,56 @@ const MESSAGE_ICONS: Record<MessageKind, string> = {
   [MessageKind.Squad]: '📋',
   [MessageKind.Media]: '📊',
   [MessageKind.Transfer]: '✍️',
+  [MessageKind.Event]: '🎲',
 };
+
+/** Tarjeta de decisión de un evento aleatorio pendiente. */
+function eventCard(state: CareerState, ctx: ViewContext): HTMLElement | null {
+  const pending = state.pendingEvent;
+  if (!pending) return null;
+
+  return card({
+    title: `${pending.icon} ${pending.title}`,
+    subtitle: 'Evento aleatorio · decide tu respuesta',
+    accent: true,
+    body: [
+      el('p', { class: 'text-muted', text: pending.body }),
+      el(
+        'div',
+        { class: 'row row--tight' },
+        ...pending.choices.map((choice) =>
+          el('button', {
+            class: 'btn btn--primary btn--sm',
+            text: choice.label,
+            title: choice.hint ?? '',
+            on: {
+              click: () => {
+                careerService.resolveEvent(pending.id, choice.id);
+                ctx.refresh();
+              },
+            },
+          }),
+        ),
+      ),
+    ],
+  });
+}
 
 /** Ficha resumida del próximo partido con probabilidades. */
 function nextMatchCard(state: CareerState, ctx: ViewContext): HTMLElement {
-  const team = careerService.currentTeam();
-  const rival = careerService.nextOpponent();
-  const fixture = careerService.nextFixture();
-  const competition = careerService.nextCompetition();
+  if (state.pendingEvent) {
+    return card({
+      title: 'Decisión pendiente',
+      subtitle: formatGameDate(state.calendar),
+      body: [emptyState('Resuelve el evento aleatorio de la parte superior para continuar tu carrera.')],
+    });
+  }
 
-  if (!team || !rival || !fixture || !competition) {
-    const seasonOver = careerService.needsSeasonClose();
+  const team = careerService.currentTeam();
+  const upcoming = careerService.nextUpcomingFixture();
+  const seasonOver = careerService.needsSeasonClose();
+
+  if (!team || !upcoming) {
     return card({
       title: 'Sin partido esta jornada',
       subtitle: formatGameDate(state.calendar),
@@ -46,7 +85,7 @@ function nextMatchCard(state: CareerState, ctx: ViewContext): HTMLElement {
         emptyState(
           seasonOver
             ? 'La temporada ha terminado. Cierra el curso para continuar.'
-            : 'Tu equipo no juega en esta tanda (copa o descanso).',
+            : 'No hay próximos partidos en el calendario.',
         ),
         seasonOver
           ? null
@@ -68,12 +107,15 @@ function nextMatchCard(state: CareerState, ctx: ViewContext): HTMLElement {
     });
   }
 
-  const isHome = fixture.homeId === team.id;
-  const preview = previewMatch(
-    state.teams[fixture.homeId] ?? team,
-    state.teams[fixture.awayId] ?? rival,
-  );
+  const { context, ticksAhead } = upcoming;
+  const fixture = context.fixture;
+  const userTeam = careerService.resolveTeam(context.userTeamId) ?? team;
+  const isHome = fixture.homeId === context.userTeamId;
+  const homeTeam = careerService.resolveTeam(fixture.homeId) ?? userTeam;
+  const awayTeam = careerService.resolveTeam(fixture.awayId) ?? userTeam;
+  const rival = isHome ? awayTeam : homeTeam;
 
+  const preview = previewMatch(homeTeam, awayTeam);
   const userProbability = isHome ? preview.probabilities.home : preview.probabilities.away;
   const drawProbability = preview.probabilities.draw;
   const rivalProbability = isHome ? preview.probabilities.away : preview.probabilities.home;
@@ -81,7 +123,12 @@ function nextMatchCard(state: CareerState, ctx: ViewContext): HTMLElement {
   const playButton = el('button', {
     class: 'btn btn--primary',
     text: '▶ Jugar en directo',
-    on: { click: () => ctx.navigate('match') },
+    on: {
+      click: () => {
+        careerService.skipToNextMatch();
+        ctx.navigate('match');
+      },
+    },
   });
 
   const quickButton = el('button', {
@@ -89,6 +136,7 @@ function nextMatchCard(state: CareerState, ctx: ViewContext): HTMLElement {
     text: '⚡ Simular rápido',
     on: {
       click: () => {
+        careerService.skipToNextMatch();
         const result = careerService.simulateUserMatchQuick(TacticalApproach.Balanced);
         if (!result) {
           notify('No hay partido que simular', 'warning');
@@ -105,10 +153,12 @@ function nextMatchCard(state: CareerState, ctx: ViewContext): HTMLElement {
 
   return card({
     title:
-      competition.kind === 'league'
-        ? `Jornada ${state.currentRound} · ${competition.name}`
-        : `${competition.name} · Ronda ${fixture.round}`,
-    subtitle: `${isHome ? 'Juegas en casa' : 'Juegas a domicilio'} · ${formatGameDate(state.calendar)}`,
+      context.kind === 'league'
+        ? `Jornada ${fixture.round} · ${context.competitionName}`
+        : `${context.competitionName} · Ronda ${fixture.round}`,
+    subtitle: `${isHome ? 'Juegas en casa' : 'Juegas a domicilio'} · ${formatGameDate(context.date)}${
+      ticksAhead > 0 ? ' · el calendario avanzará hasta este partido' : ''
+    }`,
     accent: true,
     body: [
       el(
@@ -120,15 +170,15 @@ function nextMatchCard(state: CareerState, ctx: ViewContext): HTMLElement {
           el(
             'div',
             { class: 'next-match__team' },
-            el('span', { class: 'next-match__name', text: isHome ? team.name : rival.name }),
-            el('span', { class: 'text-dim', text: `OVR ${(isHome ? team : rival).overall}` }),
+            el('span', { class: 'next-match__name', text: isHome ? userTeam.name : rival.name }),
+            el('span', { class: 'text-dim', text: `OVR ${(isHome ? userTeam : rival).overall}` }),
           ),
           el('span', { class: 'next-match__vs', text: 'vs' }),
           el(
             'div',
             { class: 'next-match__team next-match__team--away' },
-            el('span', { class: 'next-match__name', text: isHome ? rival.name : team.name }),
-            el('span', { class: 'text-dim', text: `OVR ${(isHome ? rival : team).overall}` }),
+            el('span', { class: 'next-match__name', text: isHome ? rival.name : userTeam.name }),
+            el('span', { class: 'text-dim', text: `OVR ${(isHome ? rival : userTeam).overall}` }),
           ),
         ),
         el(
@@ -614,6 +664,7 @@ export const dashboardView: ViewFactory = (ctx: ViewContext) => {
         },
       }),
     ),
+    eventCard(state, ctx),
     heroCard,
     grid,
   );

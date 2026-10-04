@@ -52,6 +52,7 @@ import {
 } from '../engine/nationalEngine';
 import { groupOfTeam, groupQualifiers, groupRange, simulateGroupRound, startKnockout } from '../engine/groupEngine';
 import { CUP_DEFS, cupDefOfCountry } from '../data/cups';
+import { CAREER_EVENTS } from '../data/events';
 import { CONTINENTAL_DEFS, continentalDef, continentalDefsOf } from '../data/continental';
 import { COUNTRIES } from '../data/continents';
 import { NATIONS, nationByCode } from '../data/nations';
@@ -68,6 +69,12 @@ import {
   recoverWeekly,
   updateForm,
 } from '../engine/progressionEngine';
+import {
+  buildEventContext,
+  createPendingEvent,
+  pickEvent,
+  resolveEvent as resolveEventChoice,
+} from '../engine/eventEngine';
 import { formatGameDate, type GameDate } from '../utils/date';
 import { createPlayer, type PlayerCreationInput } from './playerFactory';
 import { getNationalSquad, getSquad } from './squadService';
@@ -108,6 +115,18 @@ export interface NextUserFixture {
   competitionId: string;
   competitionName: string;
   kind: 'league' | 'cup' | 'continental' | 'national';
+  /** Equipo que representa al usuario en ese partido (club o selección). */
+  userTeamId: string;
+  /** Fecha de la tanda en la que se juega. */
+  date: GameDate;
+  /** Índice de la tanda dentro del calendario de la temporada. */
+  tickIndex: number;
+}
+
+/** Próximo partido del usuario junto con las tandas que hay que avanzar hasta él. */
+export interface UpcomingUserFixture {
+  context: NextUserFixture;
+  ticksAhead: number;
 }
 
 /** Acceso controlado al estado (lanza si no hay carrera activa). */
@@ -207,11 +226,23 @@ function currentNationalWindow(schedule: SeasonTick[], tick: number): number {
   return count;
 }
 
-/** Próximo partido internacional (clasificación, amistoso o torneo). */
-function nationalUserFixture(phase: 'window' | 'tournament'): NextUserFixture | null {
+/**
+ * Próximo partido internacional (clasificación, amistoso o torneo) en una tanda
+ * concreta. Solo cuenta si el futbolista está convocado: si no, la tanda se
+ * simula sin él y el calendario sigue avanzando.
+ */
+function nationalUserFixture(
+  phase: 'window' | 'tournament',
+  tickIndex: number,
+  schedule: SeasonTick[],
+  date: GameDate,
+): NextUserFixture | null {
   const current = state;
   const nation = userNation();
   if (!current || !nation) return null;
+  if (!isCalledUp()) return null;
+
+  const base = { competitionName: '', kind: 'national' as const, userTeamId: nation.id, date, tickIndex };
 
   if (phase === 'window') {
     for (const competition of Object.values(current.nationalCompetitions)) {
@@ -224,15 +255,14 @@ function nationalUserFixture(phase: 'window' | 'tournament'): NextUserFixture | 
           (item.homeId === nation.id || item.awayId === nation.id),
       );
       if (fixture) {
-        return { fixture, competitionId: competition.id, competitionName: competition.name, kind: 'national' };
+        return { ...base, fixture, competitionId: competition.id, competitionName: competition.name };
       }
     }
 
-    const schedule = buildSeasonSchedule(current.season);
-    const windowNumber = currentNationalWindow(schedule, current.tick);
+    const windowNumber = currentNationalWindow(schedule, tickIndex);
     const friendly = current.friendlies.find((item) => item.round === windowNumber && !item.played);
     return friendly
-      ? { fixture: friendly, competitionId: 'nat.friendly', competitionName: 'Amistoso', kind: 'national' }
+      ? { ...base, fixture: friendly, competitionId: 'nat.friendly', competitionName: 'Amistoso' }
       : null;
   }
 
@@ -246,12 +276,12 @@ function nationalUserFixture(phase: 'window' | 'tournament'): NextUserFixture | 
           (item.homeId === nation.id || item.awayId === nation.id),
       );
       if (fixture) {
-        return { fixture, competitionId: competition.id, competitionName: competition.name, kind: 'national' };
+        return { ...base, fixture, competitionId: competition.id, competitionName: competition.name };
       }
     } else if (competition.stage === 'knockout') {
       const leg = cupLegForTeam(competition, nation.id);
       if (leg) {
-        return { fixture: leg, competitionId: competition.id, competitionName: competition.name, kind: 'national' };
+        return { ...base, fixture: leg, competitionId: competition.id, competitionName: competition.name };
       }
     }
   }
@@ -260,22 +290,25 @@ function nationalUserFixture(phase: 'window' | 'tournament'): NextUserFixture | 
 }
 
 /**
- * Próximo partido del usuario en la tanda en curso (liga, copa, continental o selección).
- * Devuelve null si la tanda no le corresponde (eliminado, descanso…).
+ * Próximo partido del usuario en una tanda concreta del calendario
+ * (liga, copa, continental o selección). Devuelve null si la tanda no le
+ * corresponde (eliminado, descanso, no convocado…).
  */
-function nextUserFixture(): NextUserFixture | null {
+function userFixtureAt(tickIndex: number): NextUserFixture | null {
   const current = state;
   if (!current) return null;
 
-  const tick = buildSeasonSchedule(current.season)[current.tick];
+  const schedule = buildSeasonSchedule(current.season);
+  const tick = schedule[tickIndex];
   if (!tick) return null;
+  const date = tick.date;
 
   if (tick.kind === 'league') {
     const league = currentLeague();
     if (!league) return null;
     const fixture = fixtureForTeam(league, tick.round, current.teamId);
     return fixture
-      ? { fixture, competitionId: league.id, competitionName: league.name, kind: 'league' }
+      ? { fixture, competitionId: league.id, competitionName: league.name, kind: 'league', userTeamId: current.teamId, date, tickIndex }
       : null;
   }
 
@@ -283,11 +316,13 @@ function nextUserFixture(): NextUserFixture | null {
     const cup = userCup();
     if (!cup) return null;
     const leg = cupLegForTeam(cup, current.teamId);
-    return leg ? { fixture: leg, competitionId: cup.id, competitionName: cup.name, kind: 'cup' } : null;
+    return leg
+      ? { fixture: leg, competitionId: cup.id, competitionName: cup.name, kind: 'cup', userTeamId: current.teamId, date, tickIndex }
+      : null;
   }
 
   if (tick.kind === 'national') {
-    return nationalUserFixture(tick.phase);
+    return nationalUserFixture(tick.phase, tickIndex, schedule, date);
   }
 
   for (const competition of userContinentalCompetitions()) {
@@ -306,6 +341,9 @@ function nextUserFixture(): NextUserFixture | null {
           competitionId: competition.id,
           competitionName: competition.name,
           kind: 'continental',
+          userTeamId: current.teamId,
+          date,
+          tickIndex,
         };
       }
     } else if (competition.stage === 'qualifying' || competition.stage === 'knockout') {
@@ -316,6 +354,9 @@ function nextUserFixture(): NextUserFixture | null {
           competitionId: competition.id,
           competitionName: competition.name,
           kind: 'continental',
+          userTeamId: current.teamId,
+          date,
+          tickIndex,
         };
       }
     }
@@ -324,24 +365,57 @@ function nextUserFixture(): NextUserFixture | null {
   return null;
 }
 
+/**
+ * Próximo partido del usuario en la tanda en curso (liga, copa, continental o
+ * selección). Devuelve null si la tanda no le corresponde.
+ */
+function nextUserFixture(): NextUserFixture | null {
+  const current = state;
+  return current ? userFixtureAt(current.tick) : null;
+}
+
+/**
+ * Primer partido del usuario desde la tanda actual hacia delante, con el número
+ * de tandas que hay que avanzar para llegar a él. Permite mostrar siempre el
+ * próximo partido real aunque la tanda en curso sea un descanso o una copa en la
+ * que el equipo ya no participa.
+ */
+function nextUpcomingFixture(): UpcomingUserFixture | null {
+  const current = state;
+  if (!current) return null;
+
+  const schedule = buildSeasonSchedule(current.season);
+  for (let i = current.tick; i < schedule.length; i += 1) {
+    const context = userFixtureAt(i);
+    if (context) return { context, ticksAhead: i - current.tick };
+  }
+  return null;
+}
+
 /** Próximo partido (liga o copa). */
 function nextFixture(): Fixture | null {
   return nextUserFixture()?.fixture ?? null;
 }
 
-/** Rival del próximo partido. */
+/** Rival del próximo partido (club o selección). */
 function nextOpponent(): Team | null {
-  const current = state;
-  const fixture = nextFixture();
-  if (!current || !fixture) return null;
-  const rivalId = fixture.homeId === current.teamId ? fixture.awayId : fixture.homeId;
-  return current.teams[rivalId] ?? null;
+  const context = nextUserFixture();
+  if (!context) return null;
+  const { fixture, userTeamId } = context;
+  const rivalId = fixture.homeId === userTeamId ? fixture.awayId : fixture.homeId;
+  return teamFor(rivalId) ?? null;
 }
 
 /** Competición del próximo partido. */
 function nextCompetition(): { id: string; name: string; kind: 'league' | 'cup' | 'continental' | 'national' } | null {
   const context = nextUserFixture();
   return context ? { id: context.competitionId, name: context.competitionName, kind: context.kind } : null;
+}
+
+/** Rol del futbolista en el próximo partido (club o selección). */
+function nextUserRole(): SquadRole {
+  const context = nextUserFixture();
+  return context?.kind === 'national' ? nationalRole() : squadRole();
 }
 
 /**
@@ -624,6 +698,10 @@ function buildCareer(
     recentResults: [],
     seasonsPlayed: 0,
     previousFinish: null,
+    pendingEvent: null,
+    lastEventRound: 0,
+    eventsThisSeason: 0,
+    eventHistory: {},
   };
 
   buildNationalSeason(1);
@@ -1112,6 +1190,12 @@ function advanceAfterLeague(round: number, played: boolean, won: boolean): void 
 
   recoverWeekly(player, played, won);
 
+  // Los penalizadores de rol (menos minutos) se consumen jornada a jornada.
+  if (player.rolePenalty) {
+    player.rolePenalty.matches -= 1;
+    if (player.rolePenalty.matches <= 0) player.rolePenalty = null;
+  }
+
   // Avance de desarrollo cada pocas jornadas: el jugador ve crecer sus atributos.
   if ((round - 1) % CONFIG.PROGRESSION.DEVELOPMENT_INTERVAL === 0) {
     const report = applyDevelopmentTick(player, player.seasonStats, current.season, rng);
@@ -1136,6 +1220,8 @@ function advanceAfterLeague(round: number, played: boolean, won: boolean): void 
   if (current.currentRound === CONFIG.CALENDAR.WINTER_WINDOW.FROM_ROUND) {
     openWindow('winter');
   }
+
+  maybeTriggerEvent(round);
 }
 
 /**
@@ -1205,6 +1291,86 @@ function estimateSquadSituation(round: number): void {
   }
 }
 
+/* --------------------------------------------------------- Eventos aleatorios */
+
+/** Dispara, con suerte, un evento aleatorio al cerrar una jornada de liga. */
+function maybeTriggerEvent(round: number): void {
+  const current = requireState();
+  const cfg = CONFIG.EVENTS;
+
+  if (current.pendingEvent) return;
+  if (current.eventsThisSeason >= cfg.MAX_PER_SEASON) return;
+  if (round < cfg.MIN_ROUND) return;
+  if (round - current.lastEventRound < cfg.MIN_ROUND_GAP) return;
+  if (!rng.chance(cfg.CHANCE_PER_ROUND)) return;
+
+  const ctx = buildEventContext(current, squadRole());
+  if (!ctx) return;
+
+  const def = pickEvent(ctx, current, rng);
+  if (!def) return;
+
+  const pending = createPendingEvent(def, ctx);
+  current.pendingEvent = pending;
+  current.lastEventRound = round;
+  current.eventsThisSeason += 1;
+  current.eventHistory[def.id] = current.season;
+
+  pushMessage(MessageKind.Event, `${pending.icon} ${pending.title}`, pending.body, current.season, round);
+}
+
+/** Resuelve la decisión de un evento pendiente y aplica sus consecuencias. */
+function resolveEvent(eventId: string, choiceId: string): boolean {
+  const current = requireState();
+  const pending = current.pendingEvent;
+  if (!pending || pending.id !== eventId) return false;
+
+  const def = CAREER_EVENTS.find((item) => item.id === eventId);
+  const ctx = buildEventContext(current, squadRole());
+  if (!def || !ctx) {
+    current.pendingEvent = null;
+    persist();
+    return false;
+  }
+
+  const resolution = resolveEventChoice(def, choiceId, ctx, rng);
+  if (!resolution) return false;
+
+  const mergeOffers = (offers: TransferOffer[]): number => {
+    const known = new Set(current.offers.map((offer) => `${offer.kind}:${offer.teamId}`));
+    const fresh = offers.filter((offer) => !known.has(`${offer.kind}:${offer.teamId}`));
+    current.offers = [...current.offers, ...fresh].slice(0, CONFIG.MARKET.MAX_ACTIVE_OFFERS);
+    return fresh.length;
+  };
+
+  if (resolution.loanOffers > 0) {
+    const generated = generateLoanOffers(current.teams, current.leagues, current.player, rng, resolution.loanOffers);
+    const fresh = mergeOffers(generated);
+    resolution.narrative +=
+      fresh > 0
+        ? ` Han llamado ${fresh} club(es) para una cesión; revisa el mercado.`
+        : ' Ningún club ha respondido por ahora.';
+  }
+
+  if (resolution.transferOffers) {
+    const generated = generateOffers(
+      current.teams,
+      current.leagues,
+      current.player,
+      rng,
+      performanceScore(current.player.seasonStats),
+    );
+    const fresh = mergeOffers(generated);
+    resolution.narrative +=
+      fresh > 0 ? ` ${fresh} club(es) han presentado una oferta.` : ' De momento ninguna oferta en firme.';
+  }
+
+  current.pendingEvent = null;
+  pushMessage(MessageKind.Event, `${pending.icon} Decisión tomada`, resolution.narrative, current.season, current.currentRound);
+  persist();
+  return true;
+}
+
 /**
  * Simula el partido del usuario de golpe. Si la tanda no tiene partido suyo
  * (copa estando eliminado), avanza igualmente el calendario.
@@ -1221,9 +1387,10 @@ function simulateUserMatchQuick(approach: TacticalApproach): MatchResult | null 
  * descansos…) hasta su próximo partido o el cierre de la temporada.
  */
 function skipToNextMatch(): void {
-  requireState();
+  const current = requireState();
+  const limit = buildSeasonSchedule(current.season).length + 1;
   let guard = 0;
-  while (!nextUserFixture() && !isSeasonClosed() && guard < 30) {
+  while (!nextUserFixture() && !isSeasonClosed() && guard < limit) {
     commitUserMatch(null);
     guard += 1;
   }
@@ -1469,6 +1636,10 @@ function finishSeason(): SeasonSummary {
   current.phase = SeasonPhase.League;
   current.lastMatch = null;
   current.recentResults = [];
+  current.pendingEvent = null;
+  current.lastEventRound = 0;
+  current.eventsThisSeason = 0;
+  player.rolePenalty = null;
 
   // Nuevas competiciones a partir de la clasificación del curso que acaba.
   const cupChampions: Record<string, string> = {};
@@ -1713,6 +1884,8 @@ export const careerService = {
   nextOpponent,
   nextCompetition,
   nextUserFixture,
+  nextUpcomingFixture,
+  nextUserRole,
   userCup,
   userNation,
   isCalledUp,
@@ -1731,6 +1904,7 @@ export const careerService = {
   requestLoan,
   markAllMessagesRead,
   setTrainingFocus,
+  resolveEvent,
 
   /** Atributos que el futbolista puede trabajar según su posición. */
   developmentOptions() {
@@ -1770,9 +1944,14 @@ export const careerService = {
     return state ? marketValue(state.player) : 0;
   },
 
-  /** Busca un equipo por id. */
+  /** Busca un club por id. */
   team(teamId: string): Team | null {
     return state?.teams[teamId] ?? null;
+  },
+
+  /** Resuelve un equipo por id, sea club o selección (`nat.*`). */
+  resolveTeam(teamId: string): Team | null {
+    return teamFor(teamId) ?? null;
   },
 
   /** Jugador actual. */

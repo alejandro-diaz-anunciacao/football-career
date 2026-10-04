@@ -125,11 +125,13 @@ Para UI real, usa jsdom o Chrome headless por CDP (recetas en `memory.md`).
 Comprueba al menos: el caso feliz, el determinismo (misma semilla → mismo
 resultado) y la carga de una partida antigua migrada.
 
-### 9. Documentar el cambio
+### 9. Documentar el cambio (obligatorio, no opcional)
 
-- Actualiza `README.md` si es una funcionalidad visible.
-- Actualiza las notas de contexto en `memory.md` si cambia la arquitectura,
-  añades una regla o introduces una trampa nueva.
+- **`memory.md` se actualiza SIEMPRE** con cada cambio, no solo cuando cambia la
+  arquitectura: qué cambió y por qué, archivos/campos/tipos nuevos, migración,
+  invariantes o trampas nuevas y la fecha de la última revisión. Debe quedar hecho
+  **en el mismo turno**, antes de dar la tarea por terminada.
+- Actualiza `README.md` solo si es una funcionalidad visible para el jugador.
 
 ## Checklist de convenciones (rompe el build si falla)
 
@@ -160,4 +162,4 @@ resultado) y la carga de una partida antigua migrada.
 3. Migración cubierta si se añadió estado persistido.
 4. Sin números mágicos fuera de `CONFIG` ni usos de `Math.random()`.
 5. `potential` sigue siendo invisible.
-6. `README.md`/`memory.md` actualizados si aplica.
+6. `memory.md` actualizado **siempre** (obligatorio); `README.md` si es visible.
