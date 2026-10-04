@@ -15,6 +15,7 @@ import { careerService } from '../../services/careerService';
 import { formatGameDate } from '../../utils/date';
 import { el, fmt, fmtMoney, fmtRelativeTime, fmtWage } from '../dom';
 import { card, badge, emptyState, kv } from '../components/card';
+import { teamBadge } from '../components/crest';
 import { ovrBadge, ratingChip, statBar } from '../components/statBar';
 import { alertModal, openModal } from '../components/modal';
 import { notify } from '../../services/eventBus';
@@ -211,6 +212,7 @@ function nextMatchCard(state: CareerState, ctx: ViewContext): HTMLElement {
           el(
             'div',
             { class: 'next-match__team' },
+            teamBadge(isHome ? userTeam : rival, 26),
             el('span', { class: 'next-match__name', text: isHome ? userTeam.name : rival.name }),
             el('span', { class: 'text-dim', text: `OVR ${(isHome ? userTeam : rival).overall}` }),
           ),
@@ -218,6 +220,7 @@ function nextMatchCard(state: CareerState, ctx: ViewContext): HTMLElement {
           el(
             'div',
             { class: 'next-match__team next-match__team--away' },
+            teamBadge(isHome ? rival : userTeam, 26),
             el('span', { class: 'next-match__name', text: isHome ? rival.name : userTeam.name }),
             el('span', { class: 'text-dim', text: `OVR ${(isHome ? rival : userTeam).overall}` }),
           ),
@@ -557,6 +560,7 @@ export const dashboardView: ViewFactory = (ctx: ViewContext) => {
               'div',
               { class: 'inbox-item' },
               ratingChip(result.userRating ?? 0),
+              rival ? teamBadge(rival, 22) : null,
               el(
                 'div',
                 { class: 'stack', attrs: { style: 'gap:2px;flex:1' } },

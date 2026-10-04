@@ -2,6 +2,7 @@ import type { CareerState, Competition, CompetitionGroup, KnockoutTie } from '..
 import { careerService } from '../../services/careerService';
 import { el, fmt } from '../dom';
 import { badge, card, emptyState } from '../components/card';
+import { crestLabel, teamBadge } from '../components/crest';
 import type { ViewContext, ViewFactory } from './types';
 
 /** Nombre corto de un equipo. */
@@ -14,7 +15,12 @@ function teamRow(state: CareerState, id: string, tie: KnockoutTie): HTMLElement 
   const classes = ['bracket-team'];
   if (tie.winnerId === id) classes.push('is-winner');
   if (id === state.teamId) classes.push('is-user');
-  return el('span', { class: classes.join(' '), text: short(state, id) });
+  return el(
+    'span',
+    { class: classes.join(' ') },
+    teamBadge({ id, short: short(state, id) }, 16),
+    el('span', { text: short(state, id) }),
+  );
 }
 
 /** Tarjeta de una eliminatoria con sus piernas. */
@@ -75,7 +81,7 @@ function groupTable(state: CareerState, group: CompetitionGroup): HTMLElement {
               'tr',
               { class: row.teamId === state.teamId ? 'is-user' : '' },
               el('td', { class: 'num', text: String(index + 1) }),
-              el('td', { text: state.teams[row.teamId]?.name ?? row.teamId }),
+              el('td', {}, crestLabel(state.teams[row.teamId], row.teamId)),
               el('td', { class: 'num', text: fmt(row.played) }),
               el('td', { class: 'num', text: fmt(row.goalsFor - row.goalsAgainst) }),
               el('td', { class: 'num', text: fmt(row.points) }),

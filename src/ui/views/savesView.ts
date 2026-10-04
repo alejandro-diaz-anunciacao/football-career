@@ -4,6 +4,7 @@ import type { SaveSlot } from '../../services/storageService';
 import { careerService } from '../../services/careerService';
 import { el, fmt, fmtRelativeTime } from '../dom';
 import { badge, card, emptyState } from '../components/card';
+import { teamBadge } from '../components/crest';
 import { debutPicker } from '../components/debutPicker';
 import { openModal } from '../components/modal';
 import { notify } from '../../services/eventBus';
@@ -129,7 +130,17 @@ function slotCard(slot: SaveSlot, active: boolean, ctx: ViewContext): HTMLElemen
     el(
       'div',
       { class: 'slot-card__meta' },
-      el('div', {}, el('span', { class: 'kv__label', text: 'Club' }), el('span', { class: 'kv__value', text: slot.teamName })),
+      el(
+        'div',
+        {},
+        el('span', { class: 'kv__label', text: 'Club' }),
+        el(
+          'span',
+          { class: 'kv__value crest-label' },
+          teamBadge({ id: slot.teamId, name: slot.teamName }, 18),
+          el('span', { text: slot.teamName }),
+        ),
+      ),
       el('div', {}, el('span', { class: 'kv__label', text: 'Liga' }), el('span', { class: 'kv__value', text: `${slot.tier}ª · ${slot.leagueName}` })),
       el('div', {}, el('span', { class: 'kv__label', text: 'Temporada' }), el('span', { class: 'kv__value', text: String(slot.season) })),
       el('div', {}, el('span', { class: 'kv__label', text: 'Trofeos' }), el('span', { class: 'kv__value', text: fmt(slot.trophies) })),

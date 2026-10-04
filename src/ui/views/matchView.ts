@@ -6,6 +6,7 @@ import { notify } from '../../services/eventBus';
 import { formatGameDate } from '../../utils/date';
 import { el, fmt, replace } from '../dom';
 import { badge, card, emptyState, kv } from '../components/card';
+import { teamBadge } from '../components/crest';
 import { ratingChip, statBar } from '../components/statBar';
 import { appendMatchEvent, createMatchLog } from '../components/matchLog';
 import { segmented } from '../components/tabs';
@@ -122,6 +123,7 @@ export const matchView: ViewFactory = (ctx: ViewContext) => {
     el(
       'div',
       { class: 'scoreboard__team' },
+      teamBadge(homeTeam, 30),
       el('span', { class: 'scoreboard__short', text: homeTeam.short }),
       el('span', { class: 'text-dim', text: homeTeam.name }),
     ),
@@ -134,6 +136,7 @@ export const matchView: ViewFactory = (ctx: ViewContext) => {
     el(
       'div',
       { class: 'scoreboard__team scoreboard__team--away' },
+      teamBadge(awayTeam, 30),
       el('span', { class: 'scoreboard__short', text: awayTeam.short }),
       el('span', { class: 'text-dim', text: awayTeam.name }),
     ),

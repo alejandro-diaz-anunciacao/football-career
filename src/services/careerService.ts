@@ -100,6 +100,8 @@ export interface DebutOption {
   teamId: string;
   teamName: string;
   teamShort: string;
+  /** País del club, para generar su escudo. */
+  countryCode: string;
   leagueId: string;
   leagueName: string;
   tier: number;
@@ -770,6 +772,7 @@ function debutOptions(input: PlayerCreationInput): { seed: number; options: Debu
     teamId: team.id,
     teamName: team.name,
     teamShort: team.short,
+    countryCode: input.countryCode,
     leagueId: league.id,
     leagueName: league.name,
     tier: league.tier,
@@ -1683,6 +1686,7 @@ export interface CalendarDay {
   kind: 'league' | 'cup' | 'continental' | 'national';
   competitionName: string;
   label: string;
+  opponentId: string;
   opponentName: string;
   home: boolean;
   played: boolean;
@@ -1720,6 +1724,7 @@ function seasonCalendar(): CalendarDay[] {
       kind: entry.kind,
       competitionName: entry.competitionName,
       label: entry.kind === 'league' ? `Jornada ${entry.round}` : `${entry.competitionName} · Ronda ${entry.round}`,
+      opponentId,
       opponentName: teamFor(opponentId)?.name ?? opponentId,
       home,
       played: entry.played,

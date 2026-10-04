@@ -24,8 +24,8 @@ a minuto, progresión con potencial oculto, mercado de fichajes, copas y contine
 selecciones nacionales, **eventos aleatorios de carrera** con decisiones, **15
 subposiciones** (grupo + rol específico), **equipos filiales con ascenso al primer
 equipo** por rendimiento, **vista de plantilla con comparación por el puesto**,
-**calendario de temporada con simulación hasta una fecha** y guardado de hasta 12
-partidas simultáneas.
+**calendario de temporada con simulación hasta una fecha**, **escudos de club/liga y
+banderas de selección** generados y guardado de hasta 12 partidas simultáneas.
 
 - **Stack:** Vanilla TypeScript estricto + Vite. Sin frameworks, sin runtime de UI.
 - **Dependencias de producción:** ninguna. Solo `devDependencies`:
@@ -353,6 +353,7 @@ acordarlo.
 | `leagueManager.ts` | Calendario (círculo), clasificación, ascensos/descensos (`processPromotionRelegation`, `processCountryPyramid`). |
 | `marketEngine.ts` | `interestedTeams`, `generateOffers`, `chooseDebutTeam`. Las ofertas de un filial se marcan con `filialOf` (cantera). |
 | `eventEngine.ts` | Eventos aleatorios: `buildEventContext`, `pickEvent` (elegibles + cooldown + sorteo ponderado), `createPendingEvent`, `resolveEvent` (rama arriesgada y efectos). Los efectos de mercado se devuelven al servicio. |
+| `crestEngine.ts` | Identidad visual pura: `crestIdentity` (colores reales de `clubColors` o paleta por `hashString`), `initialsOf`, `flagColors`, `flagSvgInner` (banderas por especificación, excepciones a mano y estandarte de reserva). No usa el `rng` de la partida. |
 
 ## 8. Recetas de verificación (sin test runner)
 
@@ -417,6 +418,11 @@ google-chrome --headless=new --disable-gpu --no-sandbox --remote-debugging-port=
   Cada fecha futura tiene «Simular hasta aquí» (con confirmación) que llama a
   `careerService.simulateUntil(tick)`. Se accede desde la cabecera y con «Calendario»
   en el vestuario.
+- **Identidad visual (`ui/components/crest.ts`):** `teamCrest` (escudo con partición e
+  iniciales), `leagueCrest` (roundel), `nationFlag` (bandera), `teamBadge` (escudo o
+  bandera según `nat.*`) y `crestLabel` (escudo + nombre). Se usan en clasificación,
+  marcador, próximo partido, resultados, mercado, plantilla, calendario, selección,
+  copas, guardados, historial y selector de debut.
 - **Eventos aleatorios en la UI:** el vestuario pinta una tarjeta de decisión
   (`eventCard`) con las opciones; al resolverla se abre un **modal de desenlace**
   (`showEventOutcome`) con la narrativa y los chips de consecuencias, y queda la
@@ -492,6 +498,10 @@ google-chrome --headless=new --disable-gpu --no-sandbox --remote-debugging-port=
   continental, selección y convocatorias). `simulateUntil` quick-simula hasta la
   tanda elegida y **se detiene** si hay `pendingEvent` o cierra la temporada; la UI
   debe avisar de que tus partidos se juegan en rápido.
+- ⚠️ **Identidad visual:** `crestEngine` es puro y usa `hashString`, **no el RNG de la
+  partida**: no afecta al determinismo ni al guardado (no hay migración). Los colores
+  de `data/clubColors.ts` son **best-effort**; si un club no está en la tabla, el
+  escudo usa una paleta derivada de su `id`. Al añadir clubes, dales color ahí.
 
 ## 11. Mapa de archivos
 
@@ -502,17 +512,18 @@ src/
 │                               # event, career, index
 ├── data/                       # config, continents, names, leagues, cups, continental,
 │                               # nations, nationalTournaments, events, filials,
-│                               # worldBuilder, index
+│                               # clubColors, flags, worldBuilder, index
 ├── engine/                     # poisson, matchEngine, ratingEngine, roleEngine, calendar,
 │                               # schedule, cupEngine, groupEngine, continentalEngine, nationalEngine,
-│                               # progressionEngine, leagueManager, marketEngine, eventEngine
+│                               # progressionEngine, leagueManager, marketEngine, eventEngine,
+│                               # crestEngine
 ├── services/                   # careerService (fachada), storageService, squadService,
 │                               # playerFactory, randomService, nameService, idService, eventBus
 ├── utils/                      # math, random, date
 ├── styles/                     # variables, base, layout, components, views, main
 └── ui/
     ├── app.ts, router.ts, dom.ts
-    ├── components/             # card, header, statBar, matchLog, modal, toast, tabs, debutPicker
+    ├── components/             # card, header, statBar, matchLog, modal, toast, tabs, debutPicker, crest
     └── views/                  # creation, saves, dashboard, match, squad, calendar, table,
                                 # competitions, national, history, market, types
 ```

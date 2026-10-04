@@ -501,3 +501,40 @@ table.data th.num {
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+
+/* --- Escudos y banderas -------------------------------------------------- */
+.crest {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  line-height: 0;
+  vertical-align: middle;
+}
+
+.crest svg {
+  display: block;
+}
+
+.flag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  line-height: 0;
+  vertical-align: middle;
+  border-radius: 3px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
+.flag svg {
+  display: block;
+}
+
+.crest-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}

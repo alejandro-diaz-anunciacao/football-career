@@ -2,6 +2,7 @@ import { formatGameDate, type GameDate } from '../../utils/date';
 import { careerService, type CalendarDay } from '../../services/careerService';
 import { el } from '../dom';
 import { badge, card, emptyState } from '../components/card';
+import { teamBadge } from '../components/crest';
 import { openModal } from '../components/modal';
 import type { ViewContext, ViewFactory } from './types';
 
@@ -66,6 +67,12 @@ function confirmSimulate(day: CalendarDay, ctx: ViewContext): void {
 
 /** Fila de un partido del calendario. */
 function calendarRow(day: CalendarDay, ctx: ViewContext): HTMLElement {
+  const team = careerService.getState()?.teams[day.opponentId];
+  const opponent = team
+    ? teamBadge(team, 18)
+    : day.opponentId.startsWith('nat.')
+      ? teamBadge({ id: day.opponentId, name: day.opponentName }, 16)
+      : null;
   return el(
     'tr',
     { class: day.isNext ? 'is-user' : '' },
@@ -74,7 +81,7 @@ function calendarRow(day: CalendarDay, ctx: ViewContext): HTMLElement {
     el(
       'td',
       {},
-      el('span', { text: `${day.home ? 'vs' : '@'} ${day.opponentName}` }),
+      el('span', { class: 'crest-label' }, opponent, el('span', { text: `${day.home ? 'vs' : '@'} ${day.opponentName}` })),
       el('small', { class: 'text-dim', text: ` · ${day.label}` }),
     ),
     el('td', {}, resultCell(day)),

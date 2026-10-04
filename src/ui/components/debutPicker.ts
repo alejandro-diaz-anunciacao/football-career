@@ -3,6 +3,7 @@ import { careerService, type DebutChoice, type DebutOption } from '../../service
 import type { PlayerCreationInput } from '../../services/playerFactory';
 import { el, replace } from '../dom';
 import { badge, kv } from './card';
+import { teamBadge } from './crest';
 
 /** Etiqueta y tono del rol previsto en un club. */
 function roleMeta(role: SquadRole): { text: string; tone: string } {
@@ -56,7 +57,12 @@ export function debutPicker(): DebutPicker {
             el(
               'div',
               { class: 'row row--between' },
-              el('strong', { text: option.teamName }),
+              el(
+                'span',
+                { class: 'crest-label' },
+                teamBadge({ id: option.teamId, short: option.teamShort, name: option.teamName, countryCode: option.countryCode }, 20),
+                el('strong', { text: option.teamName }),
+              ),
               badge(meta.text, meta.tone),
             ),
             el('span', { class: 'text-dim', text: `${option.tier}ª categoría · ${option.leagueName}` }),

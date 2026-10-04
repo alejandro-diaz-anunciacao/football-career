@@ -1,8 +1,9 @@
 import { CONTINENTS, COUNTRIES } from '../../data/continents';
-import type { League, StandingRow } from '../../models';
+import type { League, StandingRow, Team } from '../../models';
 import { careerService } from '../../services/careerService';
 import { el, fmt } from '../dom';
 import { card, emptyState } from '../components/card';
+import { crestLabel, leagueCrest } from '../components/crest';
 import type { ViewContext, ViewFactory } from './types';
 
 /** Determina la zona de clasificación de una fila. */
@@ -14,7 +15,7 @@ function zoneClass(league: League, index: number, total: number): string {
 }
 
 /** Tabla de clasificación de una liga. */
-function standingsTable(league: League, userId: string, teamName: (id: string) => string): HTMLElement {
+function standingsTable(league: League, userId: string, teamFor: (id: string) => Team | undefined): HTMLElement {
   const rows = careerService.standingsOf(league.id);
   if (rows.length === 0) return emptyState('La liga todavía no ha comenzado.');
 
@@ -51,7 +52,7 @@ function standingsTable(league: League, userId: string, teamName: (id: string) =
             'tr',
             { class: `${zoneClass(league, index, rows.length)}${isUser ? ' is-user' : ''}` },
             el('td', { class: 'num', text: String(index + 1) }),
-            el('td', { text: teamName(row.teamId) }),
+            el('td', {}, crestLabel(teamFor(row.teamId), row.teamId)),
             el('td', { class: 'num', text: fmt(row.played) }),
             el('td', { class: 'num', text: fmt(row.won) }),
             el('td', { class: 'num', text: fmt(row.drawn) }),
@@ -82,7 +83,7 @@ export const tableView: ViewFactory = (ctx: ViewContext, params: Record<string, 
     return el('div', { class: 'page' }, card({ title: 'Liga no encontrada', body: [emptyState('Selecciona otra competición.')] }));
   }
 
-  const teamName = (id: string): string => state.teams[id]?.name ?? id;
+  const teamFor = (id: string): Team | undefined => state.teams[id];
 
   /* --- Selector agrupado por continente y país --------------------------- */
   const options: HTMLElement[] = [];
@@ -153,12 +154,12 @@ export const tableView: ViewFactory = (ctx: ViewContext, params: Record<string, 
                 el(
                   'div',
                   { class: 'row row--between' },
-                  el('span', { attrs: { style: 'flex:1' }, text: teamName(fixture.homeId) }),
+                  el('span', { attrs: { style: 'flex:1' } }, crestLabel(teamFor(fixture.homeId), fixture.homeId)),
                   el('span', {
                     class: 'mono badge',
                     text: `${fixture.homeGoals ?? 0} - ${fixture.awayGoals ?? 0}`,
                   }),
-                  el('span', { attrs: { style: 'flex:1;text-align:right' }, text: teamName(fixture.awayId) }),
+                  el('span', { attrs: { style: 'flex:1;text-align:right;justify-content:flex-end' } }, crestLabel(teamFor(fixture.awayId), fixture.awayId)),
                 ),
               ),
             ),
@@ -176,13 +177,13 @@ export const tableView: ViewFactory = (ctx: ViewContext, params: Record<string, 
         'div',
         {},
         el('span', { class: 'page-head__eyebrow', text: `${selected.country} · ${selected.tier}ª categoría` }),
-        el('h1', { text: selected.name }),
+        el('div', { class: 'crest-label' }, leagueCrest(selected, 28), el('h1', { text: selected.name })),
         el('p', { class: 'text-muted', text: `${selected.teamIds.length} equipos · ${selected.totalRounds} jornadas` }),
       ),
       el('div', { class: 'row row--tight' }, ...quickTabs, selector),
     ),
     legend,
-    card({ title: 'Clasificación', body: [standingsTable(selected, state.teamId, teamName)] }),
+    card({ title: 'Clasificación', body: [standingsTable(selected, state.teamId, teamFor)] }),
     roundCard,
   );
 };

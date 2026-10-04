@@ -6,6 +6,7 @@ import { notify } from '../../services/eventBus';
 import { formatGameDate } from '../../utils/date';
 import { el, fmt, fmtMoney, fmtWage } from '../dom';
 import { badge, card, emptyState, kv } from '../components/card';
+import { crestLabel, teamBadge } from '../components/crest';
 import type { ViewContext, ViewFactory } from './types';
 
 /** Etiqueta legible del rol previsto en una oferta. */
@@ -77,7 +78,12 @@ export const marketView: ViewFactory = (ctx: ViewContext) => {
                   el(
                     'div',
                     { class: 'stack', attrs: { style: 'gap:2px' } },
-                    el('strong', { text: offer.teamName }),
+                    el(
+                      'span',
+                      { class: 'crest-label' },
+                      teamBadge(state.teams[offer.teamId] ?? { id: offer.teamId, name: offer.teamName }, 20),
+                      el('strong', { text: offer.teamName }),
+                    ),
                     el('span', { class: 'text-dim', text: `${offer.leagueName} · ${offer.tier}ª categoría · ${offer.continent}` }),
                   ),
                   el(
@@ -185,7 +191,7 @@ export const marketView: ViewFactory = (ctx: ViewContext) => {
                     el(
                       'tr',
                       {},
-                      el('td', { text: team.name }),
+                      el('td', {}, crestLabel(team, team.name)),
                       el('td', { text: state.leagues[team.leagueId]?.name ?? '—' }),
                       el('td', { class: 'num', text: String(team.overall) }),
                       el('td', { class: 'num', text: String(team.reputation) }),

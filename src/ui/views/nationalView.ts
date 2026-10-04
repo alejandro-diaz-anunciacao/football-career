@@ -4,6 +4,7 @@ import { nationById } from '../../data/nations';
 import { careerService } from '../../services/careerService';
 import { el, fmt } from '../dom';
 import { badge, card, emptyState, kv } from '../components/card';
+import { nationFlag } from '../components/crest';
 import type { ViewContext, ViewFactory } from './types';
 
 /** Nombre de una selección. */
@@ -105,6 +106,7 @@ export const nationalView: ViewFactory = (ctx: ViewContext) => {
     title: nation.name,
     subtitle: `${nation.confederation} · fuerza ${nation.strength}`,
     accent: called,
+    actions: [nationFlag(nation.code, 34)],
     body: [
       el(
         'div',

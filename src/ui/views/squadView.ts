@@ -3,6 +3,7 @@ import type { SquadMember } from '../../models';
 import { careerService, type SquadComparison } from '../../services/careerService';
 import { el } from '../dom';
 import { badge, card, emptyState } from '../components/card';
+import { nationFlag, teamCrest } from '../components/crest';
 import type { ViewContext, ViewFactory } from './types';
 
 /** Orden de las líneas en la plantilla. */
@@ -122,7 +123,7 @@ function squadRow(comparison: SquadComparison, member: SquadMember): HTMLElement
 }
 
 /** Sección de una plantilla (club o selección) con su comparación. */
-function squadSection(comparison: SquadComparison, ctx: ViewContext): HTMLElement {
+function squadSection(comparison: SquadComparison, ctx: ViewContext, crestNode: HTMLElement | null): HTMLElement {
   const sorted = [...comparison.squad].sort(
     (a, b) => GROUP_ORDER[a.position] - GROUP_ORDER[b.position] || b.ovr - a.ovr,
   );
@@ -136,6 +137,7 @@ function squadSection(comparison: SquadComparison, ctx: ViewContext): HTMLElemen
         ? 'Convocado con tu selección'
         : 'Todavía no estás convocado: compara con el titular de tu puesto',
     accent: isClub,
+    actions: crestNode ? [crestNode] : undefined,
     body: [
       comparisonHead(comparison),
       attributesTable(comparison),
@@ -195,9 +197,11 @@ export const squadView: ViewFactory = (ctx: ViewContext) => {
       ),
       el('button', { class: 'btn btn--ghost', text: 'Volver al vestuario', on: { click: () => ctx.navigate('dashboard') } }),
     ),
-    club ? squadSection(club, ctx) : card({ title: 'Tu club', body: [emptyState('Sin plantilla disponible.')] }),
+    club
+      ? squadSection(club, ctx, state.teams[club.teamId] ? teamCrest(state.teams[club.teamId], 26) : null)
+      : card({ title: 'Tu club', body: [emptyState('Sin plantilla disponible.')] }),
     national
-      ? squadSection(national, ctx)
+      ? squadSection(national, ctx, careerService.userNation() ? nationFlag(careerService.userNation()!.code, 30) : null)
       : card({ title: 'Tu selección', body: [emptyState('Todavía no tienes selección.')] }),
   );
 };

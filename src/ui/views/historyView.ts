@@ -2,6 +2,7 @@ import { ROLE_LABELS, averageRating } from '../../models';
 import { careerService } from '../../services/careerService';
 import { el, fmt, fmtMoney, fmtWage } from '../dom';
 import { badge, card, emptyState, kv } from '../components/card';
+import { teamBadge } from '../components/crest';
 import type { ViewContext, ViewFactory } from './types';
 
 /** Vista de historial de carrera y palmarés. */
@@ -91,7 +92,12 @@ export const historyView: ViewFactory = (ctx: ViewContext) => {
                       'div',
                       { class: 'stack', attrs: { style: 'gap:2px' } },
                       el('strong', { text: trophy.name }),
-                      el('span', { class: 'text-dim', text: `${trophy.teamName} · Temporada ${trophy.season}` }),
+                      el(
+                        'span',
+                        { class: 'text-dim crest-label' },
+                        teamBadge({ id: trophy.teamId, name: trophy.teamName }, 16),
+                        el('span', { text: `${trophy.teamName} · Temporada ${trophy.season}` }),
+                      ),
                     ),
                   ),
                 ),
@@ -122,6 +128,7 @@ export const historyView: ViewFactory = (ctx: ViewContext) => {
                       el(
                         'div',
                         { class: 'row row--tight' },
+                        teamBadge({ id: season.teamId, name: season.teamName }, 18),
                         el('strong', { text: season.teamName }),
                         badge(`${season.position}º ${season.leagueName}`, season.position === 1 ? 'gold' : ''),
                         badge(`${season.ovr} OVR`, 'azure'),
