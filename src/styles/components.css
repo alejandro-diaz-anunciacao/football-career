@@ -4,12 +4,32 @@
 
 /* --- Tarjeta ------------------------------------------------------------- */
 .card {
+  position: relative;
   background: var(--glass);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: var(--space-4);
   box-shadow: var(--shadow-sm);
   backdrop-filter: blur(10px);
+  overflow: hidden;
+}
+
+.card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.14), transparent 40%);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
 }
 
 .card--flush {
@@ -24,7 +44,7 @@
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.02);
+  background: color-mix(in srgb, var(--text-100) 3%, transparent);
 }
 
 .card__title {
@@ -39,8 +59,8 @@
 }
 
 .card--accent {
-  border-color: rgba(34, 211, 127, 0.28);
-  box-shadow: 0 0 0 1px rgba(34, 211, 127, 0.08), var(--shadow-sm);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent), var(--shadow-sm);
 }
 
 /* --- Botones ------------------------------------------------------------- */
@@ -49,6 +69,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
+  min-height: 42px;
   padding: 10px 16px;
   border-radius: var(--radius-pill);
   border: 1px solid var(--border-strong);
@@ -75,9 +96,10 @@
 }
 
 .btn--primary {
-  background: linear-gradient(140deg, var(--accent), var(--accent-strong));
+  background: var(--grad-primary);
   border-color: transparent;
-  color: #04150c;
+  color: var(--on-accent);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
 .btn--primary:hover:not(:disabled) {
@@ -91,7 +113,7 @@
 
 .btn--danger {
   background: transparent;
-  border-color: rgba(255, 85, 102, 0.5);
+  border-color: color-mix(in srgb, var(--danger) 50%, transparent);
   color: var(--danger);
 }
 
@@ -101,6 +123,7 @@
 }
 
 .btn--sm {
+  min-height: 34px;
   padding: 6px 12px;
   font-size: 0.8rem;
 }
@@ -120,15 +143,15 @@
   transition: color var(--speed) var(--ease), background var(--speed) var(--ease);
 }
 
-.nav-link:hover {
+.nav-link:hover:not(:disabled) {
   color: var(--text-100);
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--text-100) 5%, transparent);
 }
 
 .nav-link.is-active {
-  color: var(--text-100);
+  color: var(--accent);
   background: var(--accent-soft);
-  border-color: rgba(34, 211, 127, 0.3);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
 /* --- Insignias ----------------------------------------------------------- */
@@ -145,36 +168,37 @@
   background: var(--bg-500);
   color: var(--text-200);
   border: 1px solid var(--border);
+  white-space: nowrap;
 }
 
 .badge--accent {
   background: var(--accent-soft);
   color: var(--accent);
-  border-color: rgba(34, 211, 127, 0.3);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
 .badge--azure {
   background: var(--azure-soft);
   color: var(--azure);
-  border-color: rgba(61, 155, 255, 0.3);
+  border-color: color-mix(in srgb, var(--azure) 30%, transparent);
 }
 
 .badge--flame {
   background: var(--flame-soft);
   color: var(--flame);
-  border-color: rgba(255, 138, 61, 0.3);
+  border-color: color-mix(in srgb, var(--flame) 30%, transparent);
 }
 
 .badge--danger {
   background: var(--danger-soft);
   color: var(--danger);
-  border-color: rgba(255, 85, 102, 0.3);
+  border-color: color-mix(in srgb, var(--danger) 30%, transparent);
 }
 
 .badge--gold {
-  background: rgba(255, 207, 77, 0.14);
+  background: color-mix(in srgb, var(--gold) 16%, transparent);
   color: var(--gold);
-  border-color: rgba(255, 207, 77, 0.32);
+  border-color: color-mix(in srgb, var(--gold) 32%, transparent);
 }
 
 /* --- Barras de progreso -------------------------------------------------- */
@@ -182,7 +206,7 @@
   position: relative;
   height: 8px;
   border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.07);
+  background: color-mix(in srgb, var(--text-100) 8%, transparent);
   overflow: hidden;
 }
 
@@ -191,19 +215,23 @@
   inset: 0 auto 0 0;
   border-radius: var(--radius-pill);
   background: linear-gradient(90deg, var(--accent-strong), var(--accent));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 50%, transparent);
   transition: width 420ms var(--ease);
 }
 
 .bar__fill--azure {
   background: linear-gradient(90deg, #1f6fd0, var(--azure));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--azure) 50%, transparent);
 }
 
 .bar__fill--flame {
   background: linear-gradient(90deg, #d9611f, var(--flame));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--flame) 50%, transparent);
 }
 
 .bar__fill--gold {
   background: linear-gradient(90deg, #d9a021, var(--gold));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--gold) 50%, transparent);
 }
 
 .bar--tall {
@@ -227,6 +255,7 @@
 /* --- Tablas -------------------------------------------------------------- */
 .table-wrap {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 table.data {
@@ -248,12 +277,12 @@ table.data thead th {
 
 table.data tbody td {
   padding: 9px 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid color-mix(in srgb, var(--text-100) 5%, transparent);
   color: var(--text-200);
 }
 
 table.data tbody tr:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--text-100) 4%, transparent);
 }
 
 table.data tbody tr.is-user {
@@ -271,15 +300,23 @@ table.data th.num {
   font-family: var(--font-mono);
 }
 
+/* Posición embebida en la tarjeta; solo se muestra en móvil */
+.standings__rank {
+  display: none;
+}
+
 /* --- Pestañas ------------------------------------------------------------ */
 .tabs {
   display: flex;
   gap: var(--space-1);
   border-bottom: 1px solid var(--border);
   overflow-x: auto;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
 }
 
 .tab {
+  min-height: 44px;
   padding: 10px 14px;
   background: transparent;
   border: none;
@@ -288,6 +325,7 @@ table.data th.num {
   font-weight: 600;
   font-size: 0.84rem;
   white-space: nowrap;
+  scroll-snap-align: start;
 }
 
 .tab:hover {
@@ -311,13 +349,14 @@ table.data th.num {
   display: grid;
   place-items: center;
   padding: var(--space-4);
-  background: rgba(4, 7, 14, 0.7);
-  backdrop-filter: blur(4px);
+  background: color-mix(in srgb, var(--bg-900) 70%, transparent);
+  backdrop-filter: blur(6px);
+  animation: fade-in 160ms var(--ease);
 }
 
 .modal {
   width: min(560px, 100%);
-  max-height: 86vh;
+  max-height: 86dvh;
   overflow: auto;
   background: var(--glass-strong);
   border: 1px solid var(--border-strong);
@@ -327,12 +366,16 @@ table.data th.num {
 }
 
 .modal__head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
   padding: var(--space-4);
   border-bottom: 1px solid var(--border);
+  background: var(--glass-strong);
 }
 
 .modal__body {
@@ -358,11 +401,20 @@ table.data th.num {
   }
 }
 
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* --- Toasts -------------------------------------------------------------- */
 .toast-root {
   position: fixed;
   right: var(--space-4);
-  bottom: var(--space-4);
+  bottom: calc(var(--space-4) + var(--safe-bottom));
   z-index: 80;
   display: flex;
   flex-direction: column;
@@ -456,7 +508,7 @@ table.data th.num {
 
 .rating-chip--elite {
   color: var(--tone-elite);
-  background: rgba(255, 207, 77, 0.14);
+  background: color-mix(in srgb, var(--gold) 14%, transparent);
 }
 
 .ovr-badge {
@@ -468,13 +520,15 @@ table.data th.num {
   font-family: var(--font-mono);
   font-size: 1.35rem;
   font-weight: 800;
-  color: #04150c;
-  background: linear-gradient(140deg, var(--accent), var(--accent-strong));
+  color: var(--on-accent);
+  background: var(--grad-primary);
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
 .ovr-badge--azure {
   background: linear-gradient(140deg, #6fc0ff, #1f6fd0);
   color: #04101f;
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--azure) 30%, transparent);
 }
 
 /* --- Píldoras de metadatos ---------------------------------------------- */
@@ -482,6 +536,7 @@ table.data th.num {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
 .kv__label {
@@ -525,7 +580,7 @@ table.data th.num {
   vertical-align: middle;
   border-radius: 3px;
   overflow: hidden;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--text-100) 20%, transparent);
 }
 
 .flag svg {
@@ -537,4 +592,189 @@ table.data th.num {
   align-items: center;
   gap: 6px;
   min-width: 0;
+}
+
+/* --- Adaptación a móvil -------------------------------------------------- */
+@media (max-width: 768px) {
+  .stat-line {
+    grid-template-columns: 76px 1fr 40px;
+    gap: var(--space-2);
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 560px) {
+  .card {
+    border-radius: var(--radius);
+  }
+
+  .card__head {
+    padding: var(--space-3);
+  }
+
+  .card__body {
+    padding: var(--space-3);
+  }
+
+  /* Tablas apiladas como tarjetas */
+  table.data--stack {
+    font-size: 0.88rem;
+  }
+
+  table.data--stack thead {
+    display: none;
+  }
+
+  table.data--stack,
+  table.data--stack tbody,
+  table.data--stack tr,
+  table.data--stack td {
+    display: block;
+    width: 100%;
+  }
+
+  table.data--stack tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 6px var(--space-4);
+    margin-bottom: var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--text-100) 3%, transparent);
+  }
+
+  table.data--stack tbody td {
+    display: block;
+    padding: 0;
+    border: none;
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+
+  table.data--stack tbody td.rank {
+    display: none;
+  }
+
+  table.data--stack tbody td.num {
+    text-align: left;
+  }
+
+  /* Clasificación: 8 estadísticas compactas en dos filas */
+  table.standings tbody tr {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  table.standings tbody td {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 4px;
+  }
+
+  table.standings tbody td::before {
+    display: inline;
+    margin: 0;
+  }
+
+  table.standings tbody td[data-span] {
+    justify-content: flex-start;
+  }
+
+  table.data--stack tbody td::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--text-400);
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 1px;
+  }
+
+  table.data--stack tbody td[data-span] {
+    grid-column: 1 / -1;
+    justify-items: start;
+    text-align: left;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2px;
+  }
+
+  table.data--stack tbody td[data-span]::before {
+    display: none;
+  }
+
+  /* Posición dentro de la tarjeta en móvil */
+  .standings__rank {
+    display: inline-grid;
+    place-items: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 4px;
+    border-radius: 6px;
+    background: var(--bg-500);
+    color: var(--text-300);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+
+  /* Zona de clasificación marcada en el borde de la tarjeta */
+  table.data--stack tbody tr.zone-promotion {
+    border-left: 3px solid var(--accent);
+  }
+
+  table.data--stack tbody tr.zone-playoff {
+    border-left: 3px solid var(--azure);
+  }
+
+  table.data--stack tbody tr.zone-relegation {
+    border-left: 3px solid var(--danger);
+  }
+
+  table.data--stack tbody tr.zone-promotion td:first-child,
+  table.data--stack tbody tr.zone-playoff td:first-child,
+  table.data--stack tbody tr.zone-relegation td:first-child {
+    box-shadow: none;
+  }
+
+  /* Modales como hoja inferior */
+  .modal-root {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .modal {
+    width: 100%;
+    max-width: 100%;
+    max-height: 90dvh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    padding-bottom: var(--safe-bottom);
+    animation: sheet-up 240ms var(--ease);
+  }
+
+  @keyframes sheet-up {
+    from {
+      opacity: 0;
+      transform: translateY(100%);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* Toasts a ancho completo */
+  .toast-root {
+    left: var(--space-3);
+    right: var(--space-3);
+    bottom: calc(var(--mobile-nav-h) + var(--safe-bottom) + var(--space-3));
+  }
+
+  .toast {
+    min-width: 0;
+    max-width: none;
+    width: 100%;
+  }
 }

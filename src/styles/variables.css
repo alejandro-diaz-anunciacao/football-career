@@ -1,7 +1,14 @@
 /* ==========================================================================
-   Variables de diseño · tema oscuro deportivo
+   Variables de diseño · tema deportivo (oscuro y claro)
+   --------------------------------------------------------------------------
+   Los nombres de token se mantienen entre temas: el oscuro vive en `:root`
+   (por defecto) y el claro lo sobreescribe en `[data-theme='light']`. El tema
+   se aplica en `document.documentElement.dataset.theme` desde `ui/theme.ts`.
    ========================================================================== */
+
 :root {
+  color-scheme: dark;
+
   /* Paleta base */
   --bg-900: #070b14;
   --bg-800: #0b1220;
@@ -9,6 +16,14 @@
   --bg-600: #16203a;
   --bg-500: #1d2a47;
   --bg-400: #263455;
+
+  /* Fondo de la aplicación (capas: aurora + base) */
+  --bg-app:
+    radial-gradient(1200px 800px at 12% -10%, rgba(34, 211, 127, 0.1), transparent 60%),
+    radial-gradient(1000px 700px at 100% 0%, rgba(61, 155, 255, 0.12), transparent 55%),
+    radial-gradient(900px 900px at 50% 120%, rgba(124, 58, 237, 0.1), transparent 60%),
+    var(--bg-900);
+  --bg-grid: rgba(255, 255, 255, 0.028);
 
   /* Cristales */
   --glass: rgba(20, 30, 52, 0.72);
@@ -43,19 +58,26 @@
   --tone-great: #22d37f;
   --tone-elite: #ffcf4d;
 
+  /* Degradados e interacción */
+  --grad-primary: linear-gradient(140deg, var(--accent), var(--accent-strong));
+  --grad-hero: linear-gradient(140deg, rgba(34, 211, 127, 0.16), rgba(61, 155, 255, 0.08));
+  --grad-score: linear-gradient(150deg, rgba(34, 211, 127, 0.14), rgba(61, 155, 255, 0.1));
+  --on-accent: #04150c;
+  --ring: 0 0 0 3px rgba(34, 211, 127, 0.4);
+
   /* Tipografía */
   --font-display: 'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif;
   --font-body: 'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
 
-  /* Espaciado */
+  /* Espaciado (los grandes escalan con la pantalla) */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-  --space-7: 48px;
+  --space-5: clamp(18px, 2.2vw, 24px);
+  --space-6: clamp(22px, 3vw, 32px);
+  --space-7: clamp(30px, 4.5vw, 48px);
 
   /* Radios */
   --radius-sm: 8px;
@@ -71,4 +93,69 @@
   /* Transiciones */
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
   --speed: 180ms;
+
+  /* Estructura */
+  --header-h: 62px;
+  --mobile-nav-h: 62px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}
+
+/* --- Tema claro ---------------------------------------------------------- */
+[data-theme='light'] {
+  color-scheme: light;
+
+  --bg-900: #eaeff8;
+  --bg-800: #ffffff;
+  --bg-700: #f4f7fd;
+  --bg-600: #e7eef9;
+  --bg-500: #dbe5f4;
+  --bg-400: #c6d4e8;
+
+  --bg-app:
+    radial-gradient(1100px 760px at 12% -10%, rgba(34, 211, 127, 0.16), transparent 60%),
+    radial-gradient(1000px 700px at 100% 0%, rgba(61, 155, 255, 0.16), transparent 55%),
+    radial-gradient(900px 900px at 50% 120%, rgba(124, 58, 237, 0.1), transparent 60%),
+    var(--bg-900);
+  --bg-grid: rgba(20, 40, 80, 0.035);
+
+  --glass: rgba(255, 255, 255, 0.82);
+  --glass-strong: rgba(255, 255, 255, 0.96);
+  --border: rgba(20, 40, 80, 0.12);
+  --border-strong: rgba(20, 40, 80, 0.24);
+
+  --text-100: #0b1a33;
+  --text-200: #24395c;
+  --text-300: #4a6288;
+  --text-400: #6d82a6;
+
+  --accent: #0f9d5f;
+  --accent-soft: rgba(15, 157, 95, 0.12);
+  --accent-strong: #0b7d4b;
+  --flame: #d9611f;
+  --flame-soft: rgba(217, 97, 31, 0.12);
+  --azure: #1f6fd0;
+  --azure-soft: rgba(31, 111, 208, 0.12);
+  --gold: #b8860b;
+  --danger: #d92b45;
+  --danger-soft: rgba(217, 43, 69, 0.12);
+  --warn: #b8790f;
+
+  --tone-bad: #d92b45;
+  --tone-poor: #d9611f;
+  --tone-ok: #4a6288;
+  --tone-good: #1f6fd0;
+  --tone-great: #0f9d5f;
+  --tone-elite: #b8860b;
+
+  --grad-hero: linear-gradient(140deg, rgba(34, 211, 127, 0.22), rgba(61, 155, 255, 0.12));
+  --grad-score: linear-gradient(150deg, rgba(34, 211, 127, 0.2), rgba(61, 155, 255, 0.14));
+  --on-accent: #04150c;
+  --ring: 0 0 0 3px rgba(15, 157, 95, 0.35);
+
+  --shadow-sm: 0 1px 3px rgba(20, 40, 80, 0.12);
+  --shadow: 0 16px 36px rgba(20, 40, 80, 0.18);
+  --shadow-glow: 0 0 0 1px var(--border-strong), 0 18px 48px rgba(20, 40, 80, 0.2);
 }

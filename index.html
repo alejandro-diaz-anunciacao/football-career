@@ -2,13 +2,27 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0b1220" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#070b14" />
     <meta
       name="description"
       content="Simulador de carrera de futbolista: divisiones, ascensos, mercado y progresión."
     />
     <title>Footballer Sim · Carrera de Leyenda</title>
+    <script>
+      // Fija el tema antes del primer pintado para evitar el destello.
+      (function () {
+        try {
+          var stored = localStorage.getItem('theme:v1');
+          if (stored !== 'light' && stored !== 'dark') {
+            stored = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+          }
+          document.documentElement.dataset.theme = stored;
+        } catch (error) {
+          document.documentElement.dataset.theme = 'dark';
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="app" class="app-shell">

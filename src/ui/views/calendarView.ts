@@ -76,18 +76,18 @@ function calendarRow(day: CalendarDay, ctx: ViewContext): HTMLElement {
   return el(
     'tr',
     { class: day.isNext ? 'is-user' : '' },
-    el('td', { text: formatGameDate(day.date) }),
-    el('td', { text: day.competitionName }),
+    el('td', { attrs: { 'data-label': 'Fecha' }, text: formatGameDate(day.date) }),
+    el('td', { attrs: { 'data-label': 'Competición' }, text: day.competitionName }),
     el(
       'td',
-      {},
+      { attrs: { 'data-span': '' } },
       el('span', { class: 'crest-label' }, opponent, el('span', { text: `${day.home ? 'vs' : '@'} ${day.opponentName}` })),
       el('small', { class: 'text-dim', text: ` · ${day.label}` }),
     ),
-    el('td', {}, resultCell(day)),
+    el('td', { attrs: { 'data-label': 'Resultado' } }, resultCell(day)),
     el(
       'td',
-      { class: 'num' },
+      { class: 'num', attrs: { 'data-span': '' } },
       day.played
         ? null
         : el('button', {
@@ -110,7 +110,7 @@ function monthCard(days: CalendarDay[], ctx: ViewContext): HTMLElement {
         { class: 'table-wrap' },
         el(
           'table',
-          { class: 'data' },
+          { class: 'data data--stack' },
           el(
             'thead',
             {},

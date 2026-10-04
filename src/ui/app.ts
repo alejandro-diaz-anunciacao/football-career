@@ -3,6 +3,7 @@ import { bus } from '../services/eventBus';
 import { clear, el, replace } from './dom';
 import { renderHeader as renderHeaderBar } from './components/header';
 import { mountToasts } from './components/toast';
+import { initTheme } from './theme';
 import { router, type Route, type RouteId } from './router';
 import { creationView } from './views/creationView';
 import { savesView } from './views/savesView';
@@ -41,6 +42,7 @@ export function bootstrap(): void {
   if (!root) throw new Error('No se encontró el contenedor #app');
 
   mountToasts();
+  initTheme();
 
   // Migra el guardado antiguo de un solo hueco y reanuda la partida más reciente.
   careerService.initStorage();

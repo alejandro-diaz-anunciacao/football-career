@@ -14,17 +14,42 @@ body {
   min-height: 100%;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
-  background:
-    radial-gradient(1200px 800px at 15% -10%, rgba(34, 211, 127, 0.08), transparent 60%),
-    radial-gradient(900px 600px at 100% 0%, rgba(61, 155, 255, 0.09), transparent 55%),
-    var(--bg-900);
+  position: relative;
+  min-height: 100dvh;
+  background: var(--bg-app);
+  background-attachment: fixed;
   color: var(--text-200);
   font-family: var(--font-body);
-  font-size: 15px;
+  font-size: clamp(14.5px, 0.55vw + 13px, 15.5px);
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
+}
+
+/* Retícula ambiental sutil */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(var(--bg-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at 50% 0%, #000 0%, transparent 75%);
+}
+
+.app-shell {
+  position: relative;
+  z-index: 1;
 }
 
 h1,
@@ -37,14 +62,15 @@ h4 {
   font-weight: 700;
   letter-spacing: -0.015em;
   line-height: 1.2;
+  text-wrap: balance;
 }
 
 h1 {
-  font-size: 1.9rem;
+  font-size: clamp(1.5rem, 3.4vw, 1.9rem);
 }
 
 h2 {
-  font-size: 1.35rem;
+  font-size: clamp(1.2rem, 2.4vw, 1.35rem);
 }
 
 h3 {
@@ -70,15 +96,33 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  cursor: not-allowed;
+}
+
 input,
-select {
+select,
+textarea {
   font-family: inherit;
   font-size: inherit;
 }
 
+img,
+svg,
+video {
+  max-width: 100%;
+}
+
+/* Foco visible y consistente en toda la interfaz */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+  border-radius: var(--radius-sm);
+}
+
 ::selection {
   background: var(--accent);
-  color: #04150c;
+  color: var(--on-accent);
 }
 
 ::-webkit-scrollbar {
@@ -87,7 +131,7 @@ select {
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.02);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
@@ -98,7 +142,7 @@ select {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #33456d;
+  background: var(--text-400);
   background-clip: padding-box;
 }
 
@@ -122,5 +166,17 @@ select {
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+/* Respeta la preferencia de menos movimiento */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
   }
 }

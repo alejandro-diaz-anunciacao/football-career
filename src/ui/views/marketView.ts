@@ -182,7 +182,7 @@ export const marketView: ViewFactory = (ctx: ViewContext) => {
               { class: 'table-wrap' },
               el(
                 'table',
-                { class: 'data' },
+                { class: 'data data--stack' },
                 el('thead', {}, el('tr', {}, el('th', { text: 'Club' }), el('th', { text: 'Liga' }), el('th', { class: 'num', text: 'OVR' }), el('th', { class: 'num', text: 'Prestigio' }))),
                 el(
                   'tbody',
@@ -191,10 +191,10 @@ export const marketView: ViewFactory = (ctx: ViewContext) => {
                     el(
                       'tr',
                       {},
-                      el('td', {}, crestLabel(team, team.name)),
-                      el('td', { text: state.leagues[team.leagueId]?.name ?? '—' }),
-                      el('td', { class: 'num', text: String(team.overall) }),
-                      el('td', { class: 'num', text: String(team.reputation) }),
+                      el('td', { attrs: { 'data-span': '' } }, crestLabel(team, team.name)),
+                      el('td', { attrs: { 'data-label': 'Liga' }, text: state.leagues[team.leagueId]?.name ?? '—' }),
+                      el('td', { class: 'num', attrs: { 'data-label': 'OVR' }, text: String(team.overall) }),
+                      el('td', { class: 'num', attrs: { 'data-label': 'Prestigio' }, text: String(team.reputation) }),
                     ),
                   ),
                 ),

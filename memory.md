@@ -25,7 +25,8 @@ selecciones nacionales, **eventos aleatorios de carrera** con decisiones, **15
 subposiciones** (grupo + rol específico), **equipos filiales con ascenso al primer
 equipo** por rendimiento, **vista de plantilla con comparación por el puesto**,
 **calendario de temporada con simulación hasta una fecha**, **escudos de club/liga y
-banderas de selección** generados y guardado de hasta 12 partidas simultáneas.
+banderas de selección** generados, **interfaz responsive con tema claro/oscuro** y
+guardado de hasta 12 partidas simultáneas.
 
 - **Stack:** Vanilla TypeScript estricto + Vite. Sin frameworks, sin runtime de UI.
 - **Dependencias de producción:** ninguna. Solo `devDependencies`:
@@ -434,9 +435,19 @@ google-chrome --headless=new --disable-gpu --no-sandbox --remote-debugging-port=
   Sin carrera activa redirige a `saves` si hay ranuras o a `creation` si no.
 - **Componentes:** card, header, statBar, matchLog, modal, toast, tabs, debutPicker
   (selector de club de debut reutilizado por creación y reinicio).
+- **Tema claro/oscuro (`ui/theme.ts`):** preferencia de interfaz en `localStorage`
+  (`theme:v1`), con valor inicial desde `prefers-color-scheme` y aplicado como
+  `data-theme` en `<html>`; un script inline en `index.html` lo fija antes del primer
+  pintado. `bootstrap()` llama a `initTheme()` y la cabecera monta un botón de tema.
+- **Interfaz responsive:** en escritorio, nav horizontal; en móvil (<900px) **barra
+  inferior fija** con 4 secciones + hoja **«Más»** (`openModal`). Rejillas que colapsan
+  y **tablas `data--stack`** que se convierten en tarjetas (<560px) usando `data-label`;
+  modal tipo *bottom-sheet*, toasts a ancho completo, foco visible global y respeto a
+  `prefers-reduced-motion`.
 - **Estilos:** `src/styles/main.css` importa en cascada `variables.css`, `base.css`,
-  `layout.css`, `components.css`, `views.css`. Tema oscuro deportivo con variables
-  CSS. **Ningún CSS se importa fuera de `main.ts`.**
+  `layout.css`, `components.css`, `views.css`. Tokens en `variables.css` con el tema
+  oscuro por defecto y overrides en `[data-theme='light']`. **Ningún CSS se importa
+  fuera de `main.ts`.**
 
 ## 10. Notas y trampas para futuras sesiones
 
@@ -502,6 +513,17 @@ google-chrome --headless=new --disable-gpu --no-sandbox --remote-debugging-port=
   partida**: no afecta al determinismo ni al guardado (no hay migración). Los colores
   de `data/clubColors.ts` son **best-effort**; si un club no está en la tabla, el
   escudo usa una paleta derivada de su `id`. Al añadir clubes, dales color ahí.
+- ⚠️ **UI y tema:** pinta siempre con los tokens de `variables.css` (o `color-mix`
+  sobre ellos), **nunca con colores literales**, o el tema claro (`[data-theme='light']`)
+  se romperá. La preferencia de tema es `localStorage['theme:v1']`, **no** forma parte
+  de la partida; el script inline de `index.html` la aplica antes del primer pintado.
+- ⚠️ **Nav móvil:** `.mobile-nav` es `position: fixed` dentro de `.site-header`. **No
+  pongas `backdrop-filter`, `transform`, `filter` ni `perspective` en `.site-header`**:
+  crean un bloque contenedor y anclan la barra arriba en vez de abajo.
+- ⚠️ **Tablas responsive:** para apilar una tabla en móvil necesita la clase
+  `data--stack` **y** un `data-label` en cada `td` (y `data-span` en las celdas a ancho
+  completo); sin `data-label` la etiqueta sale vacía. Las tablas de solo lectura que no
+  la lleven se desplazan en horizontal (`.table-wrap`).
 
 ## 11. Mapa de archivos
 
@@ -522,7 +544,7 @@ src/
 ├── utils/                      # math, random, date
 ├── styles/                     # variables, base, layout, components, views, main
 └── ui/
-    ├── app.ts, router.ts, dom.ts
+    ├── app.ts, router.ts, dom.ts, theme.ts
     ├── components/             # card, header, statBar, matchLog, modal, toast, tabs, debutPicker, crest
     └── views/                  # creation, saves, dashboard, match, squad, calendar, table,
                                 # competitions, national, history, market, types
