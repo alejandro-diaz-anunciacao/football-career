@@ -361,6 +361,7 @@ export const storageService = {
     migrated.lastEventRound = migrated.lastEventRound ?? 0;
     migrated.eventsThisSeason = migrated.eventsThisSeason ?? 0;
     migrated.eventHistory = migrated.eventHistory ?? {};
+    migrated.lastEventResult = migrated.lastEventResult ?? null;
 
     // Calendario: en partidas antiguas se deriva de la jornada en curso.
     migrated.calendar = migrated.calendar ?? roundDate(migrated.season, migrated.currentRound);

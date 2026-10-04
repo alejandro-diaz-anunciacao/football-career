@@ -8,7 +8,7 @@ import {
   potentialHint,
   seasonGrowthProgress,
 } from '../../models';
-import type { AttributeKey, CareerState, MatchResult, Team } from '../../models';
+import type { AttributeKey, CareerState, EventChange, EventResolutionSummary, MatchResult, Team } from '../../models';
 import { previewMatch } from '../../engine/matchEngine';
 import { careerService } from '../../services/careerService';
 import { formatGameDate } from '../../utils/date';
@@ -31,6 +31,30 @@ const MESSAGE_ICONS: Record<MessageKind, string> = {
   [MessageKind.Event]: '🎲',
 };
 
+/** Chip de una consecuencia concreta de un evento. */
+function changeChip(change: EventChange): HTMLElement {
+  const toneClass = change.tone === 'down' ? ' delta-chip--down' : change.tone === 'neutral' ? ' delta-chip--flat' : '';
+  return el('span', { class: `delta-chip${toneClass}`, text: `${change.label} ${change.value}` });
+}
+
+/** Fila de chips con las consecuencias de un evento. */
+function changesRow(changes: EventChange[]): HTMLElement | null {
+  if (changes.length === 0) return null;
+  return el('div', { class: 'delta-list' }, ...changes.map(changeChip));
+}
+
+/** Modal con el desenlace de un evento recién resuelto. */
+function showEventOutcome(summary: EventResolutionSummary, ctx: ViewContext): void {
+  openModal({
+    title: `${summary.icon} ${summary.title}`,
+    body: [
+      el('p', { class: 'text-muted', text: summary.narrative }),
+      changesRow(summary.changes),
+    ],
+    actions: [{ label: 'Continuar', kind: 'primary', onClick: () => ctx.refresh() }],
+  });
+}
+
 /** Tarjeta de decisión de un evento aleatorio pendiente. */
 function eventCard(state: CareerState, ctx: ViewContext): HTMLElement | null {
   const pending = state.pendingEvent;
@@ -52,13 +76,29 @@ function eventCard(state: CareerState, ctx: ViewContext): HTMLElement | null {
             title: choice.hint ?? '',
             on: {
               click: () => {
-                careerService.resolveEvent(pending.id, choice.id);
+                const summary = careerService.resolveEvent(pending.id, choice.id);
                 ctx.refresh();
+                if (summary) showEventOutcome(summary, ctx);
               },
             },
           }),
         ),
       ),
+    ],
+  });
+}
+
+/** Tarjeta con el desenlace del último evento resuelto. */
+function lastEventCard(state: CareerState): HTMLElement | null {
+  const result = state.lastEventResult;
+  if (!result) return null;
+
+  return card({
+    title: `Último evento · ${result.icon} ${result.title}`,
+    subtitle: `Temporada ${result.season} · Jornada ${result.round} · elegiste «${result.choiceLabel}»`,
+    body: [
+      el('p', { class: 'text-muted', text: result.narrative }),
+      changesRow(result.changes) ?? el('span', { class: 'text-dim', text: 'Sin cambios en tus condiciones.' }),
     ],
   });
 }
@@ -665,6 +705,7 @@ export const dashboardView: ViewFactory = (ctx: ViewContext) => {
       }),
     ),
     eventCard(state, ctx),
+    lastEventCard(state),
     heroCard,
     grid,
   );

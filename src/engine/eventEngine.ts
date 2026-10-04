@@ -4,6 +4,7 @@ import type {
   AttributeKey,
   CareerEventDef,
   CareerState,
+  EventChange,
   EventContext,
   EventEffect,
   PendingEvent,
@@ -26,6 +27,8 @@ import { applyAttributePoints } from './progressionEngine';
 /** Resultado de resolver la decisión de un evento. */
 export interface EventResolution {
   narrative: string;
+  /** Consecuencias concretas, listas para pintar como chips. */
+  changes: EventChange[];
   /** Ofertas de cesión que debe generar el servicio. */
   loanOffers: number;
   /** El servicio debe generar ofertas de traspaso. */
@@ -82,41 +85,59 @@ export function createPendingEvent(def: CareerEventDef, ctx: EventContext): Pend
   };
 }
 
-/** Aplica un efecto atómico al futbolista. */
+/** Registra un cambio numérico como chip (omite los que quedan a cero). */
+function pushChange(changes: EventChange[], label: string, delta: number): void {
+  if (delta === 0) return;
+  changes.push({ label, value: `${delta > 0 ? '+' : ''}${delta}`, tone: delta > 0 ? 'up' : 'down' });
+}
+
+/** Aplica un efecto atómico al futbolista y registra su consecuencia. */
 function applyEffect(
   player: Player,
   effect: EventEffect,
   rng: Random,
-  extra: string[],
+  changes: EventChange[],
   resolution: EventResolution,
 ): void {
   switch (effect.type) {
     case 'attribute': {
       const before = player.ovr;
       const deltas = applyAttributePoints(player, effect.points, rng, player.seasonStats, player.trainingFocus);
-      const parts = (Object.entries(deltas) as [AttributeKey, number][])
-        .filter(([, value]) => value !== 0)
-        .map(([key, value]) => `${ATTRIBUTE_LABELS[key]} ${value > 0 ? '+' : ''}${value}`);
-      if (parts.length > 0) extra.push(parts.join(', '));
-      const ovrDelta = player.ovr - before;
-      if (ovrDelta !== 0) extra.push(`OVR ${ovrDelta > 0 ? '+' : ''}${ovrDelta}`);
+      for (const [key, value] of Object.entries(deltas) as [AttributeKey, number][]) {
+        pushChange(changes, ATTRIBUTE_LABELS[key], value);
+      }
+      pushChange(changes, 'OVR', player.ovr - before);
       break;
     }
     case 'stat': {
-      if (effect.stat === 'morale') player.morale = clamp(player.morale + effect.delta, 0, 100);
-      else if (effect.stat === 'form') player.form = clamp(player.form + effect.delta, -1, 1);
-      else player.fitness = clamp(player.fitness + effect.delta, 0, 100);
+      if (effect.stat === 'morale') {
+        const before = player.morale;
+        player.morale = clamp(player.morale + effect.delta, 0, 100);
+        pushChange(changes, 'Moral', player.morale - before);
+      } else if (effect.stat === 'fitness') {
+        const before = player.fitness;
+        player.fitness = clamp(player.fitness + effect.delta, 0, 100);
+        pushChange(changes, 'Condición', player.fitness - before);
+      } else {
+        // La forma interna va de -1 a 1: se muestra cualitativa.
+        const before = player.form;
+        player.form = clamp(player.form + effect.delta, -1, 1);
+        const delta = player.form - before;
+        if (Math.abs(delta) >= 0.005) {
+          changes.push({ label: 'Forma', value: delta > 0 ? '↑' : '↓', tone: delta > 0 ? 'up' : 'down' });
+        }
+      }
       break;
     }
     case 'injury': {
       const weeks = rng.int(effect.minWeeks, effect.maxWeeks);
       player.injuryWeeks = Math.max(player.injuryWeeks, weeks);
-      extra.push(`${weeks} semana(s) de baja`);
+      changes.push({ label: 'Lesión', value: `${player.injuryWeeks} sem.`, tone: 'down' });
       break;
     }
     case 'rolePenalty': {
       player.rolePenalty = { matches: effect.matches, ovr: effect.ovr };
-      extra.push(`menos minutos durante ${effect.matches} jornadas`);
+      changes.push({ label: 'Menos minutos', value: `${effect.matches} jornadas`, tone: 'down' });
       break;
     }
     case 'loanOffers':
@@ -148,11 +169,9 @@ export function resolveEvent(
   }
   if (!outcome) return null;
 
-  const resolution: EventResolution = { narrative: outcome.narrative, loanOffers: 0, transferOffers: false };
-  const extra: string[] = [];
+  const resolution: EventResolution = { narrative: outcome.narrative, changes: [], loanOffers: 0, transferOffers: false };
   for (const effect of outcome.effects) {
-    applyEffect(ctx.player, effect, rng, extra, resolution);
+    applyEffect(ctx.player, effect, rng, resolution.changes, resolution);
   }
-  if (extra.length > 0) resolution.narrative += ` (${extra.join(', ')}).`;
   return resolution;
 }

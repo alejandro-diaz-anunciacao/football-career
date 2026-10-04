@@ -94,6 +94,27 @@ export interface PendingEvent {
   choices: { id: string; label: string; hint?: string }[];
 }
 
+/** Cambio concreto producido por un evento, listo para pintar como chip. */
+export interface EventChange {
+  /** Qué ha cambiado (p. ej. «Tiro», «Moral», «OVR»). */
+  label: string;
+  /** Cómo cambia (p. ej. «+2», «↑», «2 sem.»). */
+  value: string;
+  tone: 'up' | 'down' | 'neutral';
+}
+
+/** Resumen del desenlace de un evento, para el modal y la tarjeta de «Último evento». */
+export interface EventResolutionSummary {
+  eventId: string;
+  icon: string;
+  title: string;
+  choiceLabel: string;
+  narrative: string;
+  changes: EventChange[];
+  season: number;
+  round: number;
+}
+
 /** Penalizador temporal de rol: el entrenador te da menos minutos. */
 export interface RolePenalty {
   /** Jornadas que quedan con el penalizador activo. */

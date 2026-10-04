@@ -16,6 +16,7 @@ import type {
   AttributeKey,
   CareerState,
   Competition,
+  EventResolutionSummary,
   Fixture,
   League,
   MatchResult,
@@ -702,6 +703,7 @@ function buildCareer(
     lastEventRound: 0,
     eventsThisSeason: 0,
     eventHistory: {},
+    lastEventResult: null,
   };
 
   buildNationalSeason(1);
@@ -1319,22 +1321,23 @@ function maybeTriggerEvent(round: number): void {
   pushMessage(MessageKind.Event, `${pending.icon} ${pending.title}`, pending.body, current.season, round);
 }
 
-/** Resuelve la decisión de un evento pendiente y aplica sus consecuencias. */
-function resolveEvent(eventId: string, choiceId: string): boolean {
+/** Resuelve la decisión de un evento pendiente y devuelve su desenlace. */
+function resolveEvent(eventId: string, choiceId: string): EventResolutionSummary | null {
   const current = requireState();
   const pending = current.pendingEvent;
-  if (!pending || pending.id !== eventId) return false;
+  if (!pending || pending.id !== eventId) return null;
 
   const def = CAREER_EVENTS.find((item) => item.id === eventId);
+  const choice = def?.choices.find((item) => item.id === choiceId);
   const ctx = buildEventContext(current, squadRole());
-  if (!def || !ctx) {
+  if (!def || !choice || !ctx) {
     current.pendingEvent = null;
     persist();
-    return false;
+    return null;
   }
 
   const resolution = resolveEventChoice(def, choiceId, ctx, rng);
-  if (!resolution) return false;
+  if (!resolution) return null;
 
   const mergeOffers = (offers: TransferOffer[]): number => {
     const known = new Set(current.offers.map((offer) => `${offer.kind}:${offer.teamId}`));
@@ -1346,6 +1349,11 @@ function resolveEvent(eventId: string, choiceId: string): boolean {
   if (resolution.loanOffers > 0) {
     const generated = generateLoanOffers(current.teams, current.leagues, current.player, rng, resolution.loanOffers);
     const fresh = mergeOffers(generated);
+    resolution.changes.push({
+      label: 'Cesiones',
+      value: fresh > 0 ? `${fresh} club(es)` : 'sin respuesta',
+      tone: fresh > 0 ? 'up' : 'neutral',
+    });
     resolution.narrative +=
       fresh > 0
         ? ` Han llamado ${fresh} club(es) para una cesión; revisa el mercado.`
@@ -1361,14 +1369,39 @@ function resolveEvent(eventId: string, choiceId: string): boolean {
       performanceScore(current.player.seasonStats),
     );
     const fresh = mergeOffers(generated);
+    resolution.changes.push({
+      label: 'Ofertas',
+      value: fresh > 0 ? `${fresh}` : 'ninguna',
+      tone: fresh > 0 ? 'up' : 'neutral',
+    });
     resolution.narrative +=
       fresh > 0 ? ` ${fresh} club(es) han presentado una oferta.` : ' De momento ninguna oferta en firme.';
   }
 
+  const summary: EventResolutionSummary = {
+    eventId: def.id,
+    icon: pending.icon,
+    title: pending.title,
+    choiceLabel: choice.label,
+    narrative: resolution.narrative,
+    changes: resolution.changes,
+    season: current.season,
+    round: current.currentRound,
+  };
+
   current.pendingEvent = null;
-  pushMessage(MessageKind.Event, `${pending.icon} Decisión tomada`, resolution.narrative, current.season, current.currentRound);
+  current.lastEventResult = summary;
+
+  const changeText = resolution.changes.map((change) => `${change.label} ${change.value}`).join(', ');
+  pushMessage(
+    MessageKind.Event,
+    `${pending.icon} Decisión tomada`,
+    changeText ? `${resolution.narrative} (${changeText})` : resolution.narrative,
+    current.season,
+    current.currentRound,
+  );
   persist();
-  return true;
+  return summary;
 }
 
 /**
@@ -1639,6 +1672,7 @@ function finishSeason(): SeasonSummary {
   current.pendingEvent = null;
   current.lastEventRound = 0;
   current.eventsThisSeason = 0;
+  current.lastEventResult = null;
   player.rolePenalty = null;
 
   // Nuevas competiciones a partir de la clasificación del curso que acaba.

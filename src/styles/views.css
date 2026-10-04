@@ -612,6 +612,12 @@ tr.zone-relegation td:first-child {
   border-color: rgba(255, 85, 102, 0.28);
 }
 
+.delta-chip--flat {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-300);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
 /* --- Competiciones (copas) ---------------------------------------------- */
 .bracket {
   display: flex;

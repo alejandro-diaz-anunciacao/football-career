@@ -147,7 +147,7 @@ acordarlo.
   `seasonGrowth`, `lastGrowth`, `player.loan`, `player.nationalStats`,
   `player.rolePenalty`, `calendar`, `competitions`, `nationalCompetitions`,
   `friendlies`, `tick`, `pendingEvent`, `lastEventRound`, `eventsThisSeason`,
-  `eventHistory`) y normaliza `TransferOffer.kind`/`projectedRole` y los campos de
+  `eventHistory`, `lastEventResult`) y normaliza `TransferOffer.kind`/`projectedRole` y los campos de
   las `Competition` (`format`/`stage`/`tier`/`mainEntrants`); además actualiza
   `version`. Al añadir un campo a `Player` o `CareerState`, **añádelo también
   aquí**. `tick` se deriva de `currentRound` en partidas antiguas.
@@ -261,6 +261,12 @@ acordarlo.
   y `eventHistory[id]` guarda la temporada para el cooldown.
 - `rolePenalty` lo resta `projectRole` (menos minutos) y se decrementa cada jornada
   de liga; se limpia al cerrar la temporada.
+- **Desenlace visible:** `resolveEvent` devuelve un `EventResolutionSummary` con
+  `changes: EventChange[]` (`up`/`down`/`neutral`; la forma se muestra cualitativa
+  `↑`/`↓`). El vestuario abre un **modal** al resolver y guarda
+  `CareerState.lastEventResult` para pintar la tarjeta **«Último evento»** con la
+  narrativa y los chips. Persiste hasta el siguiente desenlace y se limpia al cerrar
+  la temporada.
 
 ## 7. Modelo de dominio (resumen)
 
@@ -287,7 +293,8 @@ acordarlo.
   currentRound, **calendar** (`GameDate`), **tick**, player, teamId, leagues,
   teams, **competitions**, **nationalCompetitions**, friendlies, history, trophies,
   inbox, offers, lastMatch, recentResults, seasonsPlayed, previousFinish,
-  **pendingEvent**, **lastEventRound**, **eventsThisSeason**, **eventHistory**).
+  **pendingEvent**, **lastEventRound**, **eventsThisSeason**, **eventHistory**,
+  **lastEventResult**).
 - **Enums string**: `Position`, `Foot`, `Continent`, `SquadRole`, `MatchEventType`,
   `SeasonPhase`, `MessageKind`, `TacticalApproach`. Tipos: `MatchOutcome`, `TeamSide`.
 
@@ -358,9 +365,11 @@ google-chrome --headless=new --disable-gpu --no-sandbox --remote-debugging-port=
 - **Vista de competiciones** (`competitionsView`): selector de copa y cuadro de
   eliminatorias con las piernas y el campeón.
 - **Eventos aleatorios en la UI:** el vestuario pinta una tarjeta de decisión
-  (`eventCard`) con las opciones; `MessageKind.Event` (icono 🎲) en la bandeja.
-  Mientras hay `pendingEvent`, la ficha de próximo partido y `matchView` muestran
-  «Decisión pendiente» y no dejan jugar.
+  (`eventCard`) con las opciones; al resolverla se abre un **modal de desenlace**
+  (`showEventOutcome`) con la narrativa y los chips de consecuencias, y queda la
+  tarjeta **«Último evento»** (`lastEventCard`). `MessageKind.Event` (icono 🎲) en la
+  bandeja. Mientras hay `pendingEvent`, la ficha de próximo partido y `matchView`
+  muestran «Decisión pendiente» y no dejan jugar.
 - **Bootstrap (`ui/app.ts`):** monta cabecera + main, conecta `router.onChange`,
   escucha `state:changed` (solo cabecera) y `state:cleared` (vuelve a `creation`).
   Sin carrera activa redirige a `saves` si hay ranuras o a `creation` si no.
@@ -405,6 +414,10 @@ google-chrome --headless=new --disable-gpu --no-sandbox --remote-debugging-port=
 - 🐛 Pendiente conocido: `ui/views/marketView.ts` usa `player.potential` directamente
   para un badge, lo que contradice la regla de potencial oculto; debería usar
   `potentialHint()`.
+- 🧩 **Comandos de OpenCode** en `.opencode/commands/`: `/feature <descripción>` y
+  `/bugs <descripción>`. Ambos fuerzan el agente `plan` (solo planifican y
+  diagnostican; no editan archivos) y **no proponen commits**: el usuario commitea
+  por su cuenta. Para aplicar el arreglo o implementar hay que cambiar de agente.
 
 ## 11. Mapa de archivos
 

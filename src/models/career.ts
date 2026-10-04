@@ -7,7 +7,7 @@ export type { GameDate };
 import type { MatchResult } from './match';
 import type { Player } from './player';
 import type { Team } from './team';
-import type { PendingEvent } from './event';
+import type { EventResolutionSummary, PendingEvent } from './event';
 
 /** Resumen de una temporada finalizada. */
 export interface SeasonHistory {
@@ -129,6 +129,8 @@ export interface CareerState {
   eventsThisSeason: number;
   /** Temporada en la que apareció por última vez cada evento. */
   eventHistory: Record<string, number>;
+  /** Desenlace del último evento resuelto, para la tarjeta de «Último evento». */
+  lastEventResult: EventResolutionSummary | null;
 }
 
 /** Resumen devuelto tras simular una jornada completa. */
