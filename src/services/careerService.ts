@@ -3,6 +3,8 @@ import { findCountry } from '../data/continents';
 import { LEAGUE_DEFS, bottomTierOf } from '../data/leagues';
 import { buildWorld } from '../data/worldBuilder';
 import {
+  ATTRIBUTE_KEYS,
+  ATTRIBUTE_LABELS,
   MatchEventType,
   MessageKind,
   PlayerRole,
@@ -25,6 +27,7 @@ import type {
   RoundSummary,
   SeasonHistory,
   SeasonSummary,
+  SquadMember,
   StandingRow,
   TacticalApproach,
   Team,
@@ -34,7 +37,7 @@ import type {
 import { currentStandings, fixtureForTeam, fixturesOfRound, positionOf, processCountryPyramid, resetLeagueForSeason, applyFixtureResult, type MovementLog } from '../engine/leagueManager';
 import { MatchSimulation, marketValue, simulateQuickMatch, suggestedWage } from '../engine/matchEngine';
 import { generateLoanOffers, generateOffers, chooseDebutTeam } from '../engine/marketEngine';
-import { projectRole, squadCompetitionLevel } from '../engine/roleEngine';
+import { projectRole, squadCompetitionLevel, squadRivals, type RoleProjection } from '../engine/roleEngine';
 import {
   buildCups,
   countBracketRounds,
@@ -78,7 +81,7 @@ import {
 } from '../engine/eventEngine';
 import { formatGameDate, type GameDate } from '../utils/date';
 import { createPlayer, type PlayerCreationInput } from './playerFactory';
-import { getNationalSquad, getSquad } from './squadService';
+import { getNationalSquad, getSquad, userToSquadMember } from './squadService';
 import { storageService, type SaveSlot } from './storageService';
 import { uid } from './idService';
 import { Random, randomSeed, rng } from './randomService';
@@ -459,6 +462,80 @@ function squadRole(): SquadRole {
 
   const squad = getSquad(team);
   return projectRole(current.player, team, squad).role;
+}
+
+/* --------------------------------------------------------------- Plantilla */
+
+/** Comparación de un atributo entre el jugador y su rival por el puesto. */
+export interface SquadAttributeComparison {
+  key: AttributeKey;
+  label: string;
+  user: number;
+  rival: number;
+  diff: number;
+}
+
+/** Datos de plantilla y comparación por el puesto, listos para la vista. */
+export interface SquadComparison {
+  scope: 'club' | 'national';
+  teamId: string;
+  teamName: string;
+  /** Plantilla (con el usuario inyectado si procede). */
+  squad: SquadMember[];
+  /** Ficha del usuario, siempre presente para comparar. */
+  user: SquadMember;
+  /** ¿El usuario forma parte de esta plantilla (club o convocado)? */
+  inSquad: boolean;
+  rivalRole: SquadMember | null;
+  rivalGroup: SquadMember | null;
+  projection: RoleProjection;
+  attributes: SquadAttributeComparison[];
+}
+
+/** Plantilla y comparación con el rival del puesto (club o selección). */
+function squadComparison(scope: 'club' | 'national'): SquadComparison | null {
+  const current = state;
+  if (!current) return null;
+  const player = current.player;
+
+  let team: Team | undefined;
+  let squad: SquadMember[];
+  let inSquad: boolean;
+
+  if (scope === 'national') {
+    const nation = userNation();
+    team = nation ? teamFor(nation.id) : undefined;
+    if (!team) return null;
+    inSquad = isCalledUp();
+    squad = getNationalSquad(team, inSquad ? player : undefined);
+  } else {
+    team = currentTeam() ?? undefined;
+    if (!team) return null;
+    inSquad = true;
+    squad = getSquad(team, player);
+  }
+
+  const user = userToSquadMember(player);
+  const rivals = squadRivals(player, squad);
+  const rival = rivals.topRole ?? rivals.topGroup;
+  const attributes: SquadAttributeComparison[] = ATTRIBUTE_KEYS.map((key) => {
+    const userValue = user[key];
+    const rivalValue = rival ? rival[key] : 0;
+    return { key, label: ATTRIBUTE_LABELS[key], user: userValue, rival: rivalValue, diff: userValue - rivalValue };
+  });
+
+  return {
+    scope,
+    teamId: team.id,
+    teamName: team.name,
+    squad,
+    user,
+    inSquad,
+    rivalRole: rivals.topRole,
+    rivalGroup: rivals.topGroup,
+    projection: projectRole(player, team, squad),
+    attributes,
+  };
 }
 
 /* ------------------------------------------------- Selección nacional */
@@ -2071,6 +2148,7 @@ export const careerService = {
   isCalledUp,
   nationalRole,
   squadRole,
+  squadComparison,
   transferWindow,
   windowOpen,
   nextWindow,

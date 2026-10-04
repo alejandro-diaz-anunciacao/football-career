@@ -689,23 +689,32 @@ export const dashboardView: ViewFactory = (ctx: ViewContext) => {
         el('h1', { text: 'Vestuario' }),
         el('p', { class: 'text-muted', text: `${team?.name ?? 'Sin club'} · ${league?.name ?? 'Sin liga'}` }),
       ),
-      el('button', {
-        class: 'btn btn--ghost',
-        text: 'Guardar partida',
-        title: `Último guardado ${fmtRelativeTime(state.savedAt)}`,
-        on: {
-          click: () => {
-            careerService.save();
-            alertModal('Partida guardada', [
-              el('p', { text: 'El progreso se ha almacenado en tu navegador.' }),
-              el('p', {
-                class: 'text-muted',
-                text: 'Puedes tener varias carreras en marcha: gestiónalas desde «Partidas».',
-              }),
-            ]);
+      el(
+        'div',
+        { class: 'row row--tight' },
+        el('button', {
+          class: 'btn btn--ghost',
+          text: '👥 Ver plantilla',
+          on: { click: () => ctx.navigate('squad') },
+        }),
+        el('button', {
+          class: 'btn btn--ghost',
+          text: 'Guardar partida',
+          title: `Último guardado ${fmtRelativeTime(state.savedAt)}`,
+          on: {
+            click: () => {
+              careerService.save();
+              alertModal('Partida guardada', [
+                el('p', { text: 'El progreso se ha almacenado en tu navegador.' }),
+                el('p', {
+                  class: 'text-muted',
+                  text: 'Puedes tener varias carreras en marcha: gestiónalas desde «Partidas».',
+                }),
+              ]);
+            },
           },
-        },
-      }),
+        }),
+      ),
     ),
     eventCard(state, ctx),
     lastEventCard(state),

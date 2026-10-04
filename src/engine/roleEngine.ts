@@ -56,19 +56,31 @@ function estimatedRoleLevel(team: Team, role: PlayerRole): number {
  * extremos pero sin ignorar a los delanteros de la línea.
  */
 export function squadCompetitionLevel(player: Player, squad: SquadMember[]): number {
-  const rivals = squad.filter((member) => !member.isUser && member.id !== player.id);
-  const sameRole = rivals.filter((member) => member.role === player.role);
-  const sameGroup = rivals.filter((member) => member.position === player.position);
-
-  const roleBest = sameRole.length > 0 ? Math.max(...sameRole.map((member) => member.ovr)) : null;
-  const groupBest = sameGroup.length > 0 ? Math.max(...sameGroup.map((member) => member.ovr)) : null;
-
-  if (roleBest === null && groupBest === null) return player.ovr;
-  if (roleBest === null) return groupBest as number;
-  if (groupBest === null) return roleBest;
+  const { topRole, topGroup } = squadRivals(player, squad);
+  if (!topRole && !topGroup) return player.ovr;
+  if (!topRole) return topGroup!.ovr;
+  if (!topGroup) return topRole.ovr;
 
   const weight = CONFIG.SQUAD.SUBROLE_WEIGHT;
-  return roleBest * weight + groupBest * (1 - weight);
+  return topRole.ovr * weight + topGroup.ovr * (1 - weight);
+}
+
+/** Rivales del jugador por subposición y por grupo, ordenados por media. */
+export interface SquadRivals {
+  /** Compañeros de la misma subposición (mejor primero). */
+  role: SquadMember[];
+  /** Compañeros del mismo grupo posicional (mejor primero). */
+  group: SquadMember[];
+  topRole: SquadMember | null;
+  topGroup: SquadMember | null;
+}
+
+/** Identifica a los rivales del jugador por el puesto (subposición y grupo). */
+export function squadRivals(player: Player, squad: SquadMember[]): SquadRivals {
+  const rivals = squad.filter((member) => !member.isUser && member.id !== player.id);
+  const role = rivals.filter((member) => member.role === player.role).sort((a, b) => b.ovr - a.ovr);
+  const group = rivals.filter((member) => member.position === player.position).sort((a, b) => b.ovr - a.ovr);
+  return { role, group, topRole: role[0] ?? null, topGroup: group[0] ?? null };
 }
 
 /**

@@ -618,6 +618,42 @@ tr.zone-relegation td:first-child {
   border-color: rgba(255, 255, 255, 0.12);
 }
 
+/* --- Plantilla y comparación -------------------------------------------- */
+.comparison {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.comparison__side {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.comparison__side--away {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.comparison__ovr {
+  font-family: var(--font-mono);
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text-100);
+}
+
+.comparison__vs {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
 /* --- Competiciones (copas) ---------------------------------------------- */
 .bracket {
   display: flex;

@@ -13,7 +13,9 @@ export interface SquadMember {
   pace: number;
   shooting: number;
   passing: number;
+  dribbling: number;
   defending: number;
+  physical: number;
   goalkeeping: number;
   /** ¿Es el futbolista controlado por el usuario? */
   isUser: boolean;

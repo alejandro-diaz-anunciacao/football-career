@@ -23,8 +23,8 @@ liga) repartidos en 5 continentes y 13 países. Incluye partido interactivo minu
 a minuto, progresión con potencial oculto, mercado de fichajes, copas y continentales,
 selecciones nacionales, **eventos aleatorios de carrera** con decisiones, **15
 subposiciones** (grupo + rol específico), **equipos filiales con ascenso al primer
-equipo** por rendimiento, ascensos/descensos y guardado de hasta 12 partidas
-simultáneas.
+equipo** por rendimiento, **vista de plantilla con comparación por el puesto** y
+guardado de hasta 12 partidas simultáneas.
 
 - **Stack:** Vanilla TypeScript estricto + Vite. Sin frameworks, sin runtime de UI.
 - **Dependencias de producción:** ninguna. Solo `devDependencies`:
@@ -311,7 +311,11 @@ acordarlo.
 - **`Team`** y **`SquadMember`**: `attack`/`midfield`/`defense`/`overall` (1-99) y
   `reputation` (1-100). `teamOverall()` pondera 0.34/0.33/0.33. `Team` puede llevar
   `parentTeamId` (es un filial) y `reserveTeamId` (tiene cantera). Cada `SquadMember`
-  lleva `position` (grupo) y `role` (subposición); las plantillas no se persisten.
+  lleva `position` (grupo), `role` (subposición) y los 7 atributos (`pace`, `shooting`,
+  `passing`, `dribbling`, `defending`, `physical`, `goalkeeping`) para poder comparar;
+  las plantillas no se persisten. `careerService.squadComparison(scope)` devuelve la
+  plantilla, tu ficha, los rivales de subposición/grupo (`squadRivals`) y los deltas
+  por atributo.
 - **`League`/`Fixture`/`StandingRow`**: `sortStandings` aplica puntos → diferencia
   de goles → goles a favor → id. `tier` 1 = máxima categoría.
 - **`Competition`**: copa o continental. `kind`, `format` (`knockout`/`groups`/`league`),
@@ -336,7 +340,7 @@ acordarlo.
 | `poisson.ts` | `samplePoisson` (Knuth), `poissonPmf`, `expectedGoals`, `midfieldAdjustment`, `matchLambdas`, `outcomeProbabilities`, `mostLikelyScoreline`. |
 | `matchEngine.ts` | `MatchSimulation` (plan completo + revelado con `step()`), `selectStartingEleven` (4-4-2), `simulateQuickMatch`, `previewMatch`, `marketValue`, `suggestedWage`. |
 | `ratingEngine.ts` | `computeRating` (1.0-10.0 ponderada por posición y resultado), `ratingLabel`, `ratingTone`. |
-| `roleEngine.ts` | `projectRole(player, team, squad?)`: rol (`Starter`/`Bench`/`NotCalled`) y minutos estimados. Banda de rotación amplia + bonus de promesa. **Competencia mezclada** subposición/grupo (`squadCompetitionLevel`) y nivel por subposición (`estimatedRoleLevel`). **Fuente única del rol** (la usan `careerService` con plantilla real y el mercado con la media del club). |
+| `roleEngine.ts` | `projectRole(player, team, squad?)`: rol (`Starter`/`Bench`/`NotCalled`) y minutos estimados. Banda de rotación amplia + bonus de promesa. **Competencia mezclada** subposición/grupo (`squadCompetitionLevel`) y `squadRivals(player, squad)` (mejor rival de rol y de grupo). Nivel por subposición (`estimatedRoleLevel`). **Fuente única del rol** (la usan `careerService` con plantilla real y el mercado con la media del club). |
 | `calendar.ts` | `roundDate(season, round)` y `windowForRound(round)`: fechas reales de cada jornada y ventana de fichajes activa. |
 | `schedule.ts` | `buildSeasonSchedule(season)`: lista de tandas (liga y copa entre semana) con su fecha. |
 | `cupEngine.ts` | `buildCup`/`buildCups`, `simulateCupTick`, `cupLegForTeam`, `buildBracketRound`, `countBracketRounds`: cuadro de eliminatoria (previa o exentos), ida/vuelta, resolución por agregado/penaltis. |
@@ -389,7 +393,7 @@ google-chrome --headless=new --disable-gpu --no-sandbox --remote-debugging-port=
 ## 9. UI y estilos
 
 - **Enrutador por hash** propio (`ui/router.ts`): rutas tipadas `creation`, `saves`,
-  `dashboard`, `match`, `table`, `competitions`, `national`, `history`, `market`.
+  `dashboard`, `match`, `squad`, `table`, `competitions`, `national`, `history`, `market`.
   Soporta query params; `parseHash` cae a `dashboard` si la ruta no es válida.
 - **Vista de selección** (`nationalView`): nación, convocatoria, estadísticas
   internacionales y clasificación/torneos de selecciones.
@@ -401,6 +405,10 @@ google-chrome --headless=new --disable-gpu --no-sandbox --remote-debugging-port=
 - **Filiales en la UI:** badge «Filial de X» y «Convocado primer equipo» en el
   vestuario; el mercado marca las ofertas de filial como «Cantera de X». El aviso de
   convocatoria aparece en la ficha del próximo partido y en las decisiones de evento.
+- **Plantilla (`squadView`, ruta `squad`):** lista la plantilla del club y la de la
+  selección con la valoración (OVR) de cada jugador, resalta tu ficha y al rival del
+  puesto, y compara tus 7 atributos con él (`squadComparison`). Se accede desde la
+  cabecera y con «Ver plantilla» en el vestuario.
 - **Eventos aleatorios en la UI:** el vestuario pinta una tarjeta de decisión
   (`eventCard`) con las opciones; al resolverla se abre un **modal de desenlace**
   (`showEventOutcome`) con la narrativa y los chips de consecuencias, y queda la
@@ -492,6 +500,6 @@ src/
 └── ui/
     ├── app.ts, router.ts, dom.ts
     ├── components/             # card, header, statBar, matchLog, modal, toast, tabs, debutPicker
-    └── views/                  # creation, saves, dashboard, match, table, competitions,
+    └── views/                  # creation, saves, dashboard, match, squad, table, competitions,
                                 # national, history, market, types
 ```

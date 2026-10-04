@@ -18,6 +18,7 @@ export interface HeaderOptions {
 const NAV_ITEMS: readonly { id: string; label: string }[] = [
   { id: 'dashboard', label: 'Vestuario' },
   { id: 'match', label: 'Partido' },
+  { id: 'squad', label: 'Plantilla' },
   { id: 'table', label: 'Clasificación' },
   { id: 'competitions', label: 'Competiciones' },
   { id: 'national', label: 'Selección' },

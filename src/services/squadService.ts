@@ -44,30 +44,33 @@ const SQUAD_SLOTS: readonly Slot[] = [
 ];
 
 /** Desplazamientos base por grupo respecto a la media global del jugador. */
-type ShapeKey = keyof Pick<Attributes, 'pace' | 'shooting' | 'passing' | 'dribbling' | 'defending' | 'goalkeeping'>;
+type ShapeKey = keyof Pick<
+  Attributes,
+  'pace' | 'shooting' | 'passing' | 'dribbling' | 'defending' | 'physical' | 'goalkeeping'
+>;
 
 const GROUP_SHAPE: Record<Position, Record<ShapeKey, number>> = {
-  [Position.Goalkeeper]: { pace: -18, shooting: -38, passing: -12, dribbling: -18, defending: -10, goalkeeping: 5 },
-  [Position.Defender]: { pace: -3, shooting: -16, passing: -7, dribbling: -10, defending: 7, goalkeeping: -45 },
-  [Position.Midfielder]: { pace: -2, shooting: -6, passing: 6, dribbling: 4, defending: -3, goalkeeping: -45 },
-  [Position.Forward]: { pace: 4, shooting: 7, passing: -5, dribbling: 5, defending: -18, goalkeeping: -45 },
+  [Position.Goalkeeper]: { pace: -18, shooting: -38, passing: -12, dribbling: -18, defending: -10, physical: 2, goalkeeping: 5 },
+  [Position.Defender]: { pace: -3, shooting: -16, passing: -7, dribbling: -10, defending: 7, physical: 5, goalkeeping: -45 },
+  [Position.Midfielder]: { pace: -2, shooting: -6, passing: 6, dribbling: 4, defending: -3, physical: -1, goalkeeping: -45 },
+  [Position.Forward]: { pace: 4, shooting: 7, passing: -5, dribbling: 5, defending: -18, physical: -2, goalkeeping: -45 },
 };
 
 /** Ajuste de atributos por subposición sobre la base de su grupo. */
 const ROLE_SHAPE_ADJUST: Partial<Record<PlayerRole, Partial<Record<ShapeKey, number>>>> = {
-  [PlayerRole.CentreBack]: { pace: -3, passing: -1, dribbling: -2, defending: 2, shooting: -2 },
+  [PlayerRole.CentreBack]: { pace: -3, passing: -1, dribbling: -2, defending: 2, physical: 2, shooting: -2 },
   [PlayerRole.LeftBack]: { pace: 3, dribbling: 1, passing: 1, defending: -1 },
   [PlayerRole.RightBack]: { pace: 3, dribbling: 1, passing: 1, defending: -1 },
   [PlayerRole.LeftWingBack]: { pace: 5, dribbling: 2, passing: 2, defending: -3 },
   [PlayerRole.RightWingBack]: { pace: 5, dribbling: 2, passing: 2, defending: -3 },
-  [PlayerRole.DefensiveMidfielder]: { defending: 5, passing: 1, shooting: -3, dribbling: -2 },
-  [PlayerRole.AttackingMidfielder]: { passing: 2, shooting: 3, dribbling: 2, defending: -4 },
+  [PlayerRole.DefensiveMidfielder]: { defending: 5, passing: 1, physical: 2, shooting: -3, dribbling: -2 },
+  [PlayerRole.AttackingMidfielder]: { passing: 2, shooting: 3, dribbling: 2, defending: -4, physical: -1 },
   [PlayerRole.LeftMidfielder]: { pace: 3, passing: 1, dribbling: 1, defending: -2, shooting: -1 },
   [PlayerRole.RightMidfielder]: { pace: 3, passing: 1, dribbling: 1, defending: -2, shooting: -1 },
-  [PlayerRole.Striker]: { shooting: 4, pace: 1, passing: -2, defending: -2 },
-  [PlayerRole.FalseNine]: { passing: 3, dribbling: 2, shooting: -1 },
-  [PlayerRole.LeftWinger]: { pace: 5, dribbling: 4, passing: 1, shooting: -2, defending: -3 },
-  [PlayerRole.RightWinger]: { pace: 5, dribbling: 4, passing: 1, shooting: -2, defending: -3 },
+  [PlayerRole.Striker]: { shooting: 4, pace: 1, passing: -2, defending: -2, physical: 1 },
+  [PlayerRole.FalseNine]: { passing: 3, dribbling: 2, shooting: -1, physical: -2 },
+  [PlayerRole.LeftWinger]: { pace: 5, dribbling: 4, passing: 1, shooting: -2, defending: -3, physical: -1 },
+  [PlayerRole.RightWinger]: { pace: 5, dribbling: 4, passing: 1, shooting: -2, defending: -3, physical: -1 },
 };
 
 /** Atributos base de una subposición: del grupo + ajuste del rol. */
@@ -106,7 +109,9 @@ function buildSquad(team: Team): SquadMember[] {
       pace: shapedAttribute(ovr, shape.pace, rng),
       shooting: shapedAttribute(ovr, shape.shooting, rng),
       passing: shapedAttribute(ovr, shape.passing, rng),
+      dribbling: shapedAttribute(ovr, shape.dribbling, rng),
       defending: shapedAttribute(ovr, shape.defending, rng),
+      physical: shapedAttribute(ovr, shape.physical, rng),
       goalkeeping: shapedAttribute(ovr, shape.goalkeeping, rng),
       isUser: false,
     } satisfies SquadMember;
@@ -126,7 +131,9 @@ export function userToSquadMember(player: Player): SquadMember {
     pace: attributes.pace,
     shooting: attributes.shooting,
     passing: attributes.passing,
+    dribbling: attributes.dribbling,
     defending: attributes.defending,
+    physical: attributes.physical,
     goalkeeping: attributes.goalkeeping,
     isUser: true,
   };

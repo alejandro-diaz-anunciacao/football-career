@@ -746,7 +746,9 @@ function userOnPitchMember(
     pace: attributes.pace,
     shooting: attributes.shooting,
     passing: attributes.passing,
+    dribbling: attributes.dribbling,
     defending: attributes.defending,
+    physical: attributes.physical,
     goalkeeping: attributes.goalkeeping,
     isUser: true,
   };
