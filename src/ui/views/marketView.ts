@@ -84,6 +84,7 @@ export const marketView: ViewFactory = (ctx: ViewContext) => {
                     'div',
                     { class: 'row row--tight' },
                     badge(isLoan ? 'Préstamo' : 'Traspaso', isLoan ? 'flame' : 'azure'),
+                    offer.filialOf ? badge(`Cantera de ${offer.filialOf}`, 'gold') : null,
                     badge(`${offer.years} año(s)`, ''),
                   ),
                 ),

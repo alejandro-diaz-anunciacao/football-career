@@ -82,6 +82,8 @@ export interface TransferOffer {
   kind: 'transfer' | 'loan';
   /** Rol previsto en el club que presenta la oferta. */
   projectedRole: SquadRole;
+  /** Nombre del primer equipo si la oferta procede de un filial (cantera). */
+  filialOf?: string;
 }
 
 /** Estado completo de la carrera, serializable en localStorage. */

@@ -22,7 +22,10 @@ export type EventEffect =
   | { type: 'injury'; minWeeks: number; maxWeeks: number }
   | { type: 'rolePenalty'; matches: number; ovr: number }
   | { type: 'loanOffers'; count: number }
-  | { type: 'transferOffers' };
+  | { type: 'transferOffers' }
+  | { type: 'trust'; delta: number }
+  | { type: 'callUp'; matches: number }
+  | { type: 'promoteToParent' };
 
 /** Resultado narrativo de una rama de un evento. */
 export interface EventOutcome {
@@ -63,6 +66,12 @@ export interface EventContext {
   seasonRating: number;
   /** Resultado de los últimos partidos (los más recientes primero). */
   recentOutcomes: MatchOutcome[];
+  /** Primer equipo del club actual, si juega en un filial. */
+  parentTeam: Team | null;
+  /** ¿Juega actualmente en un equipo filial? */
+  isFilial: boolean;
+  /** Confianza del primer equipo en el jugador (0-100). */
+  firstTeamTrust: number;
 }
 
 /** Definición completa de un evento aleatorio. */

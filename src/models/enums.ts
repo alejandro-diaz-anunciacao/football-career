@@ -4,12 +4,38 @@
  * sea legible y estable entre versiones.
  */
 
-/** Posición natural del futbolista. */
+/** Grupo posicional del futbolista (categoría amplia). */
 export enum Position {
   Goalkeeper = 'POR',
   Defender = 'DEF',
   Midfielder = 'MED',
   Forward = 'DEL',
+}
+
+/**
+ * Subposición específica del futbolista dentro de su grupo. El grupo se deriva
+ * con `roleGroup()`; estos valores se serializan en el guardado, así que son
+ * estables entre versiones.
+ */
+export enum PlayerRole {
+  Goalkeeper = 'POR',
+
+  CentreBack = 'DFC',
+  LeftBack = 'LI',
+  RightBack = 'LD',
+  LeftWingBack = 'CAI',
+  RightWingBack = 'CAD',
+
+  DefensiveMidfielder = 'MCD',
+  CentralMidfielder = 'MC',
+  AttackingMidfielder = 'MP',
+  LeftMidfielder = 'MI',
+  RightMidfielder = 'MD',
+
+  Striker = 'DC',
+  FalseNine = 'FN',
+  LeftWinger = 'EI',
+  RightWinger = 'ED',
 }
 
 /** Pie dominante. */

@@ -2,6 +2,7 @@ import { CONFIG, tacticModifiers } from '../data/config';
 import { clamp, round } from '../utils/math';
 import {
   MatchEventType,
+  PlayerRole,
   Position,
   SquadRole,
   TacticalApproach,
@@ -56,6 +57,44 @@ const BASE_WEIGHT: Record<ActorKind, Record<Position, number>> = {
   interception: { [Position.Goalkeeper]: 0.4, [Position.Defender]: 5.0, [Position.Midfielder]: 3.4, [Position.Forward]: 0.9 },
   keypass: { [Position.Goalkeeper]: 0.1, [Position.Defender]: 1.6, [Position.Midfielder]: 4.6, [Position.Forward]: 3.4 },
   foul: { [Position.Goalkeeper]: 0.3, [Position.Defender]: 3.0, [Position.Midfielder]: 2.4, [Position.Forward]: 1.6 },
+};
+
+/**
+ * Ajuste del peso de cada acción según la subposición (multiplicador sobre la
+ * base del grupo). Extremos tiran más del pase y el regate; medios defensivos
+ * roban más; mediaspuntas filtran; delanteros rematan.
+ */
+const ROLE_ACTION_ADJUST: Partial<Record<PlayerRole, Partial<Record<ActorKind, number>>>> = {
+  [PlayerRole.CentreBack]: { goal: 0.55, shot: 0.6, keypass: 0.7, tackle: 1.15, interception: 1.2 },
+  [PlayerRole.LeftBack]: { keypass: 1.15, tackle: 1.05, interception: 1.05, goal: 0.5 },
+  [PlayerRole.RightBack]: { keypass: 1.15, tackle: 1.05, interception: 1.05, goal: 0.5 },
+  [PlayerRole.LeftWingBack]: { keypass: 1.25, shot: 0.9, tackle: 0.95, goal: 0.6 },
+  [PlayerRole.RightWingBack]: { keypass: 1.25, shot: 0.9, tackle: 0.95, goal: 0.6 },
+  [PlayerRole.DefensiveMidfielder]: { tackle: 1.25, interception: 1.25, goal: 0.55, shot: 0.7, keypass: 0.9 },
+  [PlayerRole.CentralMidfielder]: {},
+  [PlayerRole.AttackingMidfielder]: { keypass: 1.3, goal: 1.15, shot: 1.15, tackle: 0.75, interception: 0.75 },
+  [PlayerRole.LeftMidfielder]: { keypass: 1.15, goal: 0.85, tackle: 0.85 },
+  [PlayerRole.RightMidfielder]: { keypass: 1.15, goal: 0.85, tackle: 0.85 },
+  [PlayerRole.Striker]: { goal: 1.15, shot: 1.15, keypass: 0.85, tackle: 0.7 },
+  [PlayerRole.FalseNine]: { keypass: 1.2, goal: 0.95, shot: 0.95 },
+  [PlayerRole.LeftWinger]: { keypass: 1.2, shot: 0.9, goal: 0.8, tackle: 0.6 },
+  [PlayerRole.RightWinger]: { keypass: 1.2, shot: 0.9, goal: 0.8, tackle: 0.6 },
+};
+
+/** Ajuste del volumen de pases según la subposición (multiplicador). */
+const ROLE_PASS_ADJUST: Partial<Record<PlayerRole, number>> = {
+  [PlayerRole.CentreBack]: 1.06,
+  [PlayerRole.LeftWingBack]: 0.98,
+  [PlayerRole.RightWingBack]: 0.98,
+  [PlayerRole.DefensiveMidfielder]: 1.12,
+  [PlayerRole.CentralMidfielder]: 1.1,
+  [PlayerRole.AttackingMidfielder]: 1.05,
+  [PlayerRole.LeftMidfielder]: 1.02,
+  [PlayerRole.RightMidfielder]: 1.02,
+  [PlayerRole.Striker]: 0.9,
+  [PlayerRole.FalseNine]: 1.05,
+  [PlayerRole.LeftWinger]: 0.92,
+  [PlayerRole.RightWinger]: 0.92,
 };
 
 /** Multiplicador aplicado al peso del usuario para que el rol module su presencia. */
@@ -187,7 +226,8 @@ export class MatchSimulation {
 
     const attributeFactor = clamp(attribute / 62, 0.45, 1.75);
     const ovrFactor = 0.75 + member.ovr / 160;
-    const weight = base * attributeFactor * ovrFactor;
+    const roleFactor = ROLE_ACTION_ADJUST[member.role]?.[kind] ?? 1;
+    const weight = base * attributeFactor * ovrFactor * roleFactor;
     return member.isUser ? weight * USER_INVOLVEMENT[kind][member.position] : weight;
   }
 
@@ -569,7 +609,7 @@ export class MatchSimulation {
   /** Volumen de pases estimado para un número de minutos jugados. */
   private estimatePassVolume(minutes: number): number {
     const user = this.options.userPlayer;
-    const passRate =
+    const baseRate =
       user.position === Position.Midfielder
         ? 0.92
         : user.position === Position.Defender
@@ -577,6 +617,7 @@ export class MatchSimulation {
           : user.position === Position.Forward
             ? 0.48
             : 0.62;
+    const passRate = baseRate * (ROLE_PASS_ADJUST[user.role] ?? 1);
     return Math.round(minutes * passRate * (0.7 + user.attributes.passing / 150));
   }
 
@@ -638,7 +679,7 @@ export class MatchSimulation {
         stats.minutes >= 60 &&
         (user.position === Position.Goalkeeper || user.position === Position.Defender);
 
-      stats.rating = computeRating(user.position, stats, this.outcome());
+      stats.rating = computeRating(user.role, stats, this.outcome());
     }
   }
 
@@ -699,6 +740,7 @@ function userOnPitchMember(
     id: player.id,
     name: player.name,
     position: player.position,
+    role: player.role,
     number: player.number,
     ovr: player.ovr,
     pace: attributes.pace,

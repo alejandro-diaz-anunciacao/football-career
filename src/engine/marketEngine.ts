@@ -76,6 +76,7 @@ function makeOffer(
   rng: Random,
   kind: 'transfer' | 'loan',
   projection: RoleProjection,
+  filialOf?: string,
 ): TransferOffer {
   const fee = kind === 'loan' ? 0 : round(marketValue(player) * rng.float(1.05, 1.85), 2);
   const wage = Math.round(
@@ -93,10 +94,18 @@ function makeOffer(
     wage: Math.max(CONFIG.MARKET.MIN_WAGE, wage),
     years: kind === 'loan' ? 1 : rng.int(2, 5),
     fee,
-    pitch: rng.pick(PITCHES),
+    pitch: filialOf
+      ? `Te formarás en el filial de ${filialOf} con opciones reales de dar el salto al primer equipo.`
+      : rng.pick(PITCHES),
     kind,
     projectedRole: projection.role,
+    filialOf,
   };
+}
+
+/** Nombre del primer equipo si el club es un filial. */
+function parentNameOf(teams: Record<string, Team>, team: Team): string | undefined {
+  return team.parentTeamId ? teams[team.parentTeamId]?.name : undefined;
 }
 
 /**
@@ -127,7 +136,9 @@ export function generateLoanOffers(
   while (pool.length > 0 && offers.length < count) {
     const pick = rng.pick(pool);
     pool.splice(pool.indexOf(pick), 1);
-    offers.push(makeOffer(pick.team, leagues[pick.team.leagueId], player, rng, 'loan', pick.projection));
+    offers.push(
+      makeOffer(pick.team, leagues[pick.team.leagueId], player, rng, 'loan', pick.projection, parentNameOf(teams, pick.team)),
+    );
   }
 
   return offers.sort((a, b) => b.wage - a.wage);
@@ -174,7 +185,9 @@ export function generateOffers(
       const pick = rng.weighted(pool);
       const index = pool.findIndex((entry) => entry.value === pick);
       if (index >= 0) pool.splice(index, 1);
-      offers.push(makeOffer(pick.team, leagues[pick.team.leagueId], player, rng, 'transfer', pick.projection));
+      offers.push(
+        makeOffer(pick.team, leagues[pick.team.leagueId], player, rng, 'transfer', pick.projection, parentNameOf(teams, pick.team)),
+      );
     }
 
     // Oferta ambiciosa poco frecuente: un club grande donde competirás por el puesto.
@@ -182,7 +195,15 @@ export function generateOffers(
       const wildcard = pickWildcard(teams, player, rng);
       if (wildcard) {
         offers.push(
-          makeOffer(wildcard.team, leagues[wildcard.team.leagueId], player, rng, 'transfer', wildcard.projection),
+          makeOffer(
+            wildcard.team,
+            leagues[wildcard.team.leagueId],
+            player,
+            rng,
+            'transfer',
+            wildcard.projection,
+            parentNameOf(teams, wildcard.team),
+          ),
         );
       }
     }

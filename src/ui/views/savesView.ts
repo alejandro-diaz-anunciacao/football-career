@@ -1,5 +1,5 @@
 import { CONFIG } from '../../data/config';
-import { Position } from '../../models';
+import { Position, ROLE_LABELS } from '../../models';
 import type { SaveSlot } from '../../services/storageService';
 import { careerService } from '../../services/careerService';
 import { el, fmt, fmtRelativeTime } from '../dom';
@@ -121,7 +121,7 @@ function slotCard(slot: SaveSlot, active: boolean, ctx: ViewContext): HTMLElemen
         el('span', { class: 'slot-card__name', text: slot.playerName }),
         el('span', {
           class: 'text-dim',
-          text: `${POSITION_LABEL[slot.position]} · ${slot.age} años · ${slot.nationality}`,
+          text: `${slot.role ? ROLE_LABELS[slot.role] : POSITION_LABEL[slot.position]} · ${slot.age} años · ${slot.nationality}`,
         }),
       ),
       active ? badge('En juego', 'accent') : null,

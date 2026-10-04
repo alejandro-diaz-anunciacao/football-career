@@ -1,6 +1,7 @@
 import { SquadRole } from '../models';
 import type { CareerEventDef } from '../models';
 import { clamp } from '../utils/math';
+import { CONFIG } from './config';
 
 /**
  * Catálogo de eventos aleatorios de carrera.
@@ -624,6 +625,89 @@ export const CAREER_EVENTS: readonly CareerEventDef[] = [
         outcome: {
           effects: [{ type: 'stat', stat: 'form', delta: 0.05 }],
           narrative: 'Gestionas la emoción y rindes con cabeza.',
+        },
+      },
+    ],
+  },
+  {
+    id: 'filial-callup',
+    icon: '📞',
+    weight: 3,
+    minRound: 3,
+    cooldownSeasons: 1,
+    when: (ctx) =>
+      ctx.isFilial &&
+      ctx.player.injuryWeeks === 0 &&
+      ctx.player.callUp === null &&
+      ctx.firstTeamTrust >= CONFIG.FILIAL.CALLUP_MIN_TRUST &&
+      (ctx.role === SquadRole.Starter || ctx.seasonRating >= 6.5),
+    title: (ctx) => `El primer equipo de ${ctx.parentTeam?.name ?? 'tu club'} llama a tu puerta`,
+    body: () =>
+      'Un titular del primer equipo se ha lesionado y el cuerpo técnico quiere contar contigo para el próximo partido. Es tu oportunidad.',
+    choices: [
+      {
+        id: 'accept',
+        label: 'Aceptar la convocatoria',
+        hint: 'Jugarás el próximo partido con el primer equipo.',
+        outcome: {
+          effects: [
+            { type: 'callUp', matches: 1 },
+            { type: 'trust', delta: CONFIG.FILIAL.ACCEPT_TRUST_GAIN },
+          ],
+          narrative: 'Aceptas el reto y te unes al primer equipo para el próximo partido.',
+        },
+      },
+      {
+        id: 'reject',
+        label: 'Rechazar y seguir en el filial',
+        outcome: {
+          effects: [
+            { type: 'trust', delta: -CONFIG.FILIAL.REJECT_TRUST_COST },
+            { type: 'stat', stat: 'morale', delta: -3 },
+          ],
+          narrative: 'Prefieres no dar el paso todavía. El cuerpo técnico del primer equipo no lo encaja bien.',
+        },
+      },
+    ],
+  },
+  {
+    id: 'filial-promotion',
+    icon: '⬆️',
+    weight: 3,
+    minRound: 6,
+    cooldownSeasons: 2,
+    when: (ctx) =>
+      ctx.isFilial &&
+      ctx.player.injuryWeeks === 0 &&
+      ctx.role === SquadRole.Starter &&
+      ctx.player.seasonStats.minutes >= CONFIG.FILIAL.PROMOTION_MIN_MINUTES &&
+      ctx.seasonRating >= CONFIG.FILIAL.PROMOTION_MIN_RATING &&
+      ctx.firstTeamTrust >= CONFIG.FILIAL.PROMOTION_MIN_TRUST,
+    title: (ctx) => `El primer equipo de ${ctx.parentTeam?.name ?? 'tu club'} te quiere`,
+    body: () =>
+      'Tus actuaciones en el filial han convencido al cuerpo técnico del primer equipo. Te ofrecen dar el salto definitivo.',
+    choices: [
+      {
+        id: 'accept',
+        label: 'Aceptar el ascenso',
+        hint: 'Pasarás al primer equipo con un nuevo contrato.',
+        outcome: {
+          effects: [
+            { type: 'promoteToParent' },
+            { type: 'trust', delta: CONFIG.FILIAL.ACCEPT_TRUST_GAIN },
+          ],
+          narrative: 'Aceptas el ascenso y firmas tu primer contrato con el primer equipo.',
+        },
+      },
+      {
+        id: 'reject',
+        label: 'Quedarme en el filial',
+        outcome: {
+          effects: [
+            { type: 'trust', delta: -CONFIG.FILIAL.REJECT_TRUST_COST },
+            { type: 'stat', stat: 'morale', delta: -2 },
+          ],
+          narrative: 'Prefieres seguir acumulando minutos en el filial antes de dar el salto.',
         },
       },
     ],

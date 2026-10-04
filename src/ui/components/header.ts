@@ -1,3 +1,4 @@
+import { ROLE_LABELS } from '../../models';
 import type { CareerState, SquadRole } from '../../models';
 import { windowForRound } from '../../engine/calendar';
 import { careerService } from '../../services/careerService';
@@ -67,7 +68,7 @@ export function renderHeader(options: HeaderOptions): HTMLElement {
       ? el(
           'div',
           { class: 'row row--tight' },
-          badge(`${state.player.position}`, 'accent'),
+          badge(ROLE_LABELS[state.player.role], 'accent'),
           badge(`OVR ${state.player.ovr}`, 'azure'),
           role ? badge(role, role === 'Titular' ? 'accent' : role === 'Suplente' ? 'flame' : '') : null,
           openWindow ? badge('Mercado abierto', 'gold') : null,

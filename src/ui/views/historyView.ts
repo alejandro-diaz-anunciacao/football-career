@@ -1,4 +1,4 @@
-import { averageRating } from '../../models';
+import { ROLE_LABELS, averageRating } from '../../models';
 import { careerService } from '../../services/careerService';
 import { el, fmt, fmtMoney, fmtWage } from '../dom';
 import { badge, card, emptyState, kv } from '../components/card';
@@ -157,7 +157,7 @@ export const historyView: ViewFactory = (ctx: ViewContext) => {
         {},
         el('span', { class: 'page-head__eyebrow', text: 'Legado' }),
         el('h1', { text: `Carrera de ${player.name}` }),
-        el('p', { class: 'text-muted', text: `${player.age} años · ${player.position} · ${player.nationality}` }),
+        el('p', { class: 'text-muted', text: `${player.age} años · ${ROLE_LABELS[player.role]} · ${player.nationality}` }),
       ),
       el('button', { class: 'btn btn--ghost', text: 'Volver al vestuario', on: { click: () => ctx.navigate('dashboard') } }),
     ),

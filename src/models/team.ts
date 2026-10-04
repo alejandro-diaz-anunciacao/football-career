@@ -1,11 +1,13 @@
 import { clamp } from '../utils/math';
-import { Continent, Position } from './enums';
+import { Continent, PlayerRole, Position } from './enums';
 
 /** Ficha de un integrante de plantilla generado por el simulador. */
 export interface SquadMember {
   id: string;
   name: string;
   position: Position;
+  /** Subposición específica dentro del grupo. */
+  role: PlayerRole;
   number: number;
   ovr: number;
   pace: number;
@@ -36,6 +38,10 @@ export interface Team {
   overall: number;
   /** Prestigio del club (1-100), usado por el mercado. */
   reputation: number;
+  /** Primer equipo al que pertenece este filial (si es un equipo filial). */
+  parentTeamId?: string;
+  /** Filial principal de este club (si tiene cantera). */
+  reserveTeamId?: string;
 }
 
 /** Media global derivada de las tres líneas. */

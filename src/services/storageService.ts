@@ -1,6 +1,6 @@
 import { CONFIG } from '../data/config';
-import { SquadRole, emptySeasonGrowth, emptySeasonStats } from '../models';
-import type { CareerState, Fixture, League, Player, Position } from '../models';
+import { DEFAULT_ROLE_BY_POSITION, SquadRole, emptySeasonGrowth, emptySeasonStats } from '../models';
+import type { CareerState, Fixture, League, Player, PlayerRole, Position } from '../models';
 import { DEFAULT_FOCUS } from '../engine/progressionEngine';
 import { roundDate } from '../engine/calendar';
 import { buildSeasonSchedule } from '../engine/schedule';
@@ -82,6 +82,8 @@ export interface SaveSlot {
   countryCode: string;
   nationality: string;
   position: Position;
+  /** Subposición específica (puede faltar en índices antiguos). */
+  role?: PlayerRole;
   age: number;
   ovr: number;
   teamId: string;
@@ -216,6 +218,7 @@ export const storageService = {
       countryCode: state.player.countryCode,
       nationality: state.player.nationality,
       position: state.player.position,
+      role: state.player.role,
       age: state.player.age,
       ovr: state.player.ovr,
       teamId: state.teamId,
@@ -348,12 +351,16 @@ export const storageService = {
     // Rellena los campos de desarrollo añadidos después de la versión inicial.
     const player = migrated.player as Player | undefined;
     if (player) {
-      player.trainingFocus = player.trainingFocus ?? DEFAULT_FOCUS[player.position] ?? 'passing';
+      // Subposición: las partidas antiguas solo tenían el grupo posicional.
+      player.role = player.role ?? DEFAULT_ROLE_BY_POSITION[player.position];
+      player.trainingFocus = player.trainingFocus ?? DEFAULT_FOCUS[player.role] ?? 'passing';
       player.seasonGrowth = player.seasonGrowth ?? emptySeasonGrowth(player.ovr);
       player.lastGrowth = player.lastGrowth ?? null;
       player.loan = player.loan ?? null;
       player.nationalStats = player.nationalStats ?? emptySeasonStats();
       player.rolePenalty = player.rolePenalty ?? null;
+      player.callUp = player.callUp ?? null;
+      player.firstTeamTrust = player.firstTeamTrust ?? 50;
     }
 
     // Eventos aleatorios: las partidas antiguas no los tenían.

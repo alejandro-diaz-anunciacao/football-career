@@ -59,6 +59,13 @@ export const CONFIG = {
     /** Minutos de rotación mínimos y máximos dentro de la banda de suplente. */
     ROTATION_MIN_MINUTES: 15,
     ROTATION_MAX_MINUTES: 60,
+    /**
+     * Peso de la misma subposición frente al grupo en la competencia por el
+     * puesto. 0.65 = 65 % cuenta el mejor rival de tu subposición y 35 % el
+     * mejor del grupo (un extremo compite con extremos, pero el entrenador
+     * mira a toda la delantera).
+     */
+    SUBROLE_WEIGHT: 0.65,
   },
 
   /** Motor de progresión. */
@@ -219,6 +226,24 @@ export const CONFIG = {
     MAX_PER_SEASON: 5,
     /** Jornada mínima de la temporada para empezar a disparar eventos. */
     MIN_ROUND: 3,
+  },
+
+  /** Filiales y cantera. */
+  FILIAL: {
+    /** Confianza mínima del primer equipo para que te convoque. */
+    CALLUP_MIN_TRUST: 40,
+    /** Confianza mínima para optar al ascenso definitivo. */
+    PROMOTION_MIN_TRUST: 55,
+    /** Minutos mínimos en la temporada para optar al ascenso. */
+    PROMOTION_MIN_MINUTES: 700,
+    /** Nota media mínima para optar al ascenso. */
+    PROMOTION_MIN_RATING: 6.8,
+    /** Confianza que gana aceptar una convocatoria o un ascenso. */
+    ACCEPT_TRUST_GAIN: 5,
+    /** Confianza que pierde rechazar una convocatoria o un ascenso. */
+    REJECT_TRUST_COST: 8,
+    /** Confianza extra al ascender al primer equipo. */
+    PROMOTION_TRUST_BONUS: 10,
   },
 } as const;
 

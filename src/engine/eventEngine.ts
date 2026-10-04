@@ -33,6 +33,10 @@ export interface EventResolution {
   loanOffers: number;
   /** El servicio debe generar ofertas de traspaso. */
   transferOffers: boolean;
+  /** Partidos de convocatoria con el primer equipo que debe aplicar el servicio. */
+  callUpMatches: number;
+  /** El servicio debe ascender al futbolista al primer equipo de su filial. */
+  promoteToParent: boolean;
 }
 
 /** Construye la vista de solo lectura que consumen las definiciones. */
@@ -40,6 +44,7 @@ export function buildEventContext(state: CareerState, role: SquadRole): EventCon
   const team = state.teams[state.teamId];
   if (!team) return null;
   const player = state.player;
+  const parentTeamId = team.parentTeamId;
   return {
     player,
     team,
@@ -50,6 +55,9 @@ export function buildEventContext(state: CareerState, role: SquadRole): EventCon
     lastRating: state.lastMatch?.userRating ?? null,
     seasonRating: averageRating(player.seasonStats),
     recentOutcomes: state.recentResults.slice(0, 3).map((result) => result.userOutcome),
+    parentTeam: parentTeamId ? state.teams[parentTeamId] ?? null : null,
+    isFilial: Boolean(parentTeamId),
+    firstTeamTrust: player.firstTeamTrust,
   };
 }
 
@@ -146,6 +154,23 @@ function applyEffect(
     case 'transferOffers':
       resolution.transferOffers = true;
       break;
+    case 'trust': {
+      const before = player.firstTeamTrust;
+      player.firstTeamTrust = clamp(player.firstTeamTrust + effect.delta, 0, 100);
+      const delta = player.firstTeamTrust - before;
+      if (delta !== 0) {
+        changes.push({ label: 'Confianza', value: `${delta > 0 ? '+' : ''}${delta}`, tone: delta > 0 ? 'up' : 'down' });
+      }
+      break;
+    }
+    case 'callUp':
+      resolution.callUpMatches += effect.matches;
+      changes.push({ label: 'Convocatoria', value: `${effect.matches} partido`, tone: 'up' });
+      break;
+    case 'promoteToParent':
+      resolution.promoteToParent = true;
+      changes.push({ label: 'Promoción', value: 'primer equipo', tone: 'up' });
+      break;
   }
 }
 
@@ -169,7 +194,14 @@ export function resolveEvent(
   }
   if (!outcome) return null;
 
-  const resolution: EventResolution = { narrative: outcome.narrative, changes: [], loanOffers: 0, transferOffers: false };
+  const resolution: EventResolution = {
+    narrative: outcome.narrative,
+    changes: [],
+    loanOffers: 0,
+    transferOffers: false,
+    callUpMatches: 0,
+    promoteToParent: false,
+  };
   for (const effect of outcome.effects) {
     applyEffect(ctx.player, effect, rng, resolution.changes, resolution);
   }

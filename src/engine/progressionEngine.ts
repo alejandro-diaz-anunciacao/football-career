@@ -2,10 +2,12 @@ import { CONFIG, ageGrowthFactor } from '../data/config';
 import { clamp, round } from '../utils/math';
 import {
   ATTRIBUTE_KEYS,
+  PlayerRole,
   Position,
   averageRating,
   emptySeasonGrowth,
   ovrFromAttributes,
+  roleGroup,
 } from '../models';
 import type {
   AttributeKey,
@@ -34,7 +36,7 @@ import type { Random } from '../utils/random';
  * portería).
  */
 
-/** Peso base de cada atributo en el desarrollo, según la posición. */
+/** Peso base de cada atributo en el desarrollo, según el grupo posicional. */
 const DEVELOPMENT_WEIGHTS: Record<Position, Partial<Record<AttributeKey, number>>> = {
   [Position.Goalkeeper]: { goalkeeping: 5, physical: 2, pace: 1, passing: 1, defending: 0.5 },
   [Position.Defender]: { defending: 5, physical: 3, pace: 2, passing: 1.5, dribbling: 0.5 },
@@ -42,17 +44,56 @@ const DEVELOPMENT_WEIGHTS: Record<Position, Partial<Record<AttributeKey, number>
   [Position.Forward]: { shooting: 5, pace: 3, dribbling: 3, physical: 1.5, passing: 1.5, defending: 0.4 },
 };
 
-/** Foco de entrenamiento recomendado por defecto para cada posición. */
-export const DEFAULT_FOCUS: Record<Position, AttributeKey> = {
-  [Position.Goalkeeper]: 'goalkeeping',
-  [Position.Defender]: 'defending',
-  [Position.Midfielder]: 'passing',
-  [Position.Forward]: 'shooting',
+/** Ajuste de los pesos de desarrollo por subposición (multiplicador). */
+const ROLE_DEVELOPMENT_ADJUST: Partial<Record<PlayerRole, Partial<Record<AttributeKey, number>>>> = {
+  [PlayerRole.CentreBack]: { defending: 1.2, physical: 1.15, pace: 0.85, passing: 0.85, dribbling: 0.7 },
+  [PlayerRole.LeftBack]: { pace: 1.2, passing: 1.05, defending: 1.0, dribbling: 0.9 },
+  [PlayerRole.RightBack]: { pace: 1.2, passing: 1.05, defending: 1.0, dribbling: 0.9 },
+  [PlayerRole.LeftWingBack]: { pace: 1.25, passing: 1.1, defending: 0.85 },
+  [PlayerRole.RightWingBack]: { pace: 1.25, passing: 1.1, defending: 0.85 },
+  [PlayerRole.DefensiveMidfielder]: { defending: 1.25, physical: 1.1, shooting: 0.7 },
+  [PlayerRole.CentralMidfielder]: {},
+  [PlayerRole.AttackingMidfielder]: { passing: 1.1, shooting: 1.15, dribbling: 1.1, defending: 0.7 },
+  [PlayerRole.LeftMidfielder]: { pace: 1.15, dribbling: 1.1, passing: 1.05, defending: 0.85 },
+  [PlayerRole.RightMidfielder]: { pace: 1.15, dribbling: 1.1, passing: 1.05, defending: 0.85 },
+  [PlayerRole.Striker]: { shooting: 1.2, physical: 1.05, passing: 0.85 },
+  [PlayerRole.FalseNine]: { passing: 1.15, dribbling: 1.1, shooting: 0.95 },
+  [PlayerRole.LeftWinger]: { pace: 1.25, dribbling: 1.2, shooting: 0.9, defending: 0.7 },
+  [PlayerRole.RightWinger]: { pace: 1.25, dribbling: 1.2, shooting: 0.9, defending: 0.7 },
 };
 
-/** Atributos que un futbolista puede trabajar según su posición. */
-export function developmentFocusOptions(position: Position): AttributeKey[] {
-  const weights = DEVELOPMENT_WEIGHTS[position];
+/** Pesos de desarrollo de una subposición: base del grupo × ajuste del rol. */
+function developmentBaseWeights(role: PlayerRole): Partial<Record<AttributeKey, number>> {
+  const base = DEVELOPMENT_WEIGHTS[roleGroup(role)];
+  const merged: Partial<Record<AttributeKey, number>> = { ...base };
+  for (const [key, factor] of Object.entries(ROLE_DEVELOPMENT_ADJUST[role] ?? {}) as [AttributeKey, number][]) {
+    merged[key] = (merged[key] ?? 0.1) * factor;
+  }
+  return merged;
+}
+
+/** Foco de entrenamiento recomendado por defecto para cada subposición. */
+export const DEFAULT_FOCUS: Record<PlayerRole, AttributeKey> = {
+  [PlayerRole.Goalkeeper]: 'goalkeeping',
+  [PlayerRole.CentreBack]: 'defending',
+  [PlayerRole.LeftBack]: 'pace',
+  [PlayerRole.RightBack]: 'pace',
+  [PlayerRole.LeftWingBack]: 'pace',
+  [PlayerRole.RightWingBack]: 'pace',
+  [PlayerRole.DefensiveMidfielder]: 'defending',
+  [PlayerRole.CentralMidfielder]: 'passing',
+  [PlayerRole.AttackingMidfielder]: 'shooting',
+  [PlayerRole.LeftMidfielder]: 'dribbling',
+  [PlayerRole.RightMidfielder]: 'dribbling',
+  [PlayerRole.Striker]: 'shooting',
+  [PlayerRole.FalseNine]: 'passing',
+  [PlayerRole.LeftWinger]: 'dribbling',
+  [PlayerRole.RightWinger]: 'dribbling',
+};
+
+/** Atributos que un futbolista puede trabajar según su subposición. */
+export function developmentFocusOptions(role: PlayerRole): AttributeKey[] {
+  const weights = DEVELOPMENT_WEIGHTS[roleGroup(role)];
   return [...ATTRIBUTE_KEYS]
     .filter((key) => (weights[key] ?? 0) > 0)
     .sort((a, b) => (weights[b] ?? 0) - (weights[a] ?? 0));
@@ -74,7 +115,7 @@ function developmentWeights(
   stats: PlayerSeasonStats,
   focus: AttributeKey,
 ): { value: AttributeKey; weight: number }[] {
-  const base = DEVELOPMENT_WEIGHTS[player.position];
+  const base = developmentBaseWeights(player.role);
   const activity: Partial<Record<AttributeKey, number>> = {
     shooting: stats.goals * 2.0 + stats.shotsOnTarget * 0.25 + stats.shots * 0.08,
     passing: stats.assists * 2.0 + stats.keyPasses * 0.25 + stats.passes * 0.004,
@@ -102,14 +143,14 @@ function enforcePotentialCeiling(player: Player, rng: Random): void {
   let guard = 0;
   while (player.ovr > player.potential && guard < 150) {
     guard += 1;
-    const weights = DEVELOPMENT_WEIGHTS[player.position];
+    const weights = developmentBaseWeights(player.role);
     const candidates = ATTRIBUTE_KEYS.filter(
       (key) => player.attributes[key] > CONFIG.ATTR_MIN && (weights[key] ?? 0) > 0,
     ).map((key) => ({ value: key, weight: weights[key] ?? 0.2 }));
     if (candidates.length === 0) break;
     const key = rng.weighted(candidates);
     player.attributes[key] = clamp(player.attributes[key] - 1, CONFIG.ATTR_MIN, CONFIG.ATTR_MAX);
-    player.ovr = ovrFromAttributes(player.position, player.attributes);
+    player.ovr = ovrFromAttributes(player.role, player.attributes);
   }
 }
 
@@ -155,7 +196,7 @@ export function applyAttributePoints(
   }
 
   // La media se recalcula antes de validar el techo del potencial.
-  player.ovr = ovrFromAttributes(player.position, player.attributes);
+  player.ovr = ovrFromAttributes(player.role, player.attributes);
   if (direction > 0) enforcePotentialCeiling(player, rng);
   return deltas;
 }
@@ -324,7 +365,7 @@ export function agePlayer(player: Player, rng: Random): void {
     if (rng.chance(0.4)) attributes.pace = clamp(attributes.pace + 1, CONFIG.ATTR_MIN, CONFIG.ATTR_MAX);
   }
   player.attributes = attributes;
-  player.ovr = ovrFromAttributes(player.position, attributes);
+  player.ovr = ovrFromAttributes(player.role, attributes);
 }
 
 /** Recuperación semanal de condición física y moral. */

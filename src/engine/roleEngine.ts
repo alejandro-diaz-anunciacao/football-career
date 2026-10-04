@@ -1,6 +1,6 @@
 import { CONFIG } from '../data/config';
 import { clamp } from '../utils/math';
-import { Position, SquadRole } from '../models';
+import { PlayerRole, Position, SquadRole, roleGroup } from '../models';
 import type { Player, SquadMember, Team } from '../models';
 
 /**
@@ -31,16 +31,44 @@ function promiseBonus(player: Player): number {
  * El generador de plantillas da un plus a los titulares teóricos (porteros y
  * defensas, sobre todo); los delanteros de referencia quedan algo por debajo.
  */
-function estimatedPositionLevel(team: Team, position: Position): number {
-  return position === Position.Forward ? team.overall - 1.4 : team.overall + 1.6;
+/** Corrección del nivel de referencia según la subposición (ataque = más fácil). */
+const ROLE_LEVEL_DELTA: Partial<Record<PlayerRole, number>> = {
+  [PlayerRole.AttackingMidfielder]: -1.4,
+  [PlayerRole.LeftWinger]: -1.8,
+  [PlayerRole.RightWinger]: -1.8,
+  [PlayerRole.FalseNine]: -1.8,
+  [PlayerRole.Striker]: -1.4,
+  [PlayerRole.LeftMidfielder]: -0.8,
+  [PlayerRole.RightMidfielder]: -0.8,
+  [PlayerRole.LeftWingBack]: -0.4,
+  [PlayerRole.RightWingBack]: -0.4,
+};
+
+/** Nivel del mejor rival de la subposición estimado a partir del club. */
+function estimatedRoleLevel(team: Team, role: PlayerRole): number {
+  const base = roleGroup(role) === Position.Forward ? team.overall - 1.4 : team.overall + 1.6;
+  return base + (ROLE_LEVEL_DELTA[role] ?? 0);
 }
 
-/** Nivel del mejor compañero de la posición en una plantilla real. */
-function squadPositionLevel(player: Player, squad: SquadMember[]): number {
-  const rivals = squad
-    .filter((member) => !member.isUser && member.id !== player.id && member.position === player.position)
-    .sort((a, b) => b.ovr - a.ovr);
-  return rivals[0]?.ovr ?? player.ovr;
+/**
+ * Nivel de competencia por el puesto: mezcla el mejor rival de la **misma
+ * subposición** con el mejor del **grupo**, para que un extremo compita con
+ * extremos pero sin ignorar a los delanteros de la línea.
+ */
+export function squadCompetitionLevel(player: Player, squad: SquadMember[]): number {
+  const rivals = squad.filter((member) => !member.isUser && member.id !== player.id);
+  const sameRole = rivals.filter((member) => member.role === player.role);
+  const sameGroup = rivals.filter((member) => member.position === player.position);
+
+  const roleBest = sameRole.length > 0 ? Math.max(...sameRole.map((member) => member.ovr)) : null;
+  const groupBest = sameGroup.length > 0 ? Math.max(...sameGroup.map((member) => member.ovr)) : null;
+
+  if (roleBest === null && groupBest === null) return player.ovr;
+  if (roleBest === null) return groupBest as number;
+  if (groupBest === null) return roleBest;
+
+  const weight = CONFIG.SQUAD.SUBROLE_WEIGHT;
+  return roleBest * weight + groupBest * (1 - weight);
 }
 
 /**
@@ -53,7 +81,7 @@ export function projectRole(player: Player, team: Team, squad?: SquadMember[]): 
   }
 
   const level =
-    squad && squad.length > 0 ? squadPositionLevel(player, squad) : estimatedPositionLevel(team, player.position);
+    squad && squad.length > 0 ? squadCompetitionLevel(player, squad) : estimatedRoleLevel(team, player.role);
   const penalty = player.rolePenalty && player.rolePenalty.matches > 0 ? player.rolePenalty.ovr : 0;
   const effective = player.ovr + player.form * 2.2 + promiseBonus(player) - penalty;
 

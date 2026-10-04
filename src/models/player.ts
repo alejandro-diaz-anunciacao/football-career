@@ -1,5 +1,5 @@
 import { clamp } from '../utils/math';
-import { Foot, Position } from './enums';
+import { Foot, PlayerRole, Position } from './enums';
 import type { RolePenalty } from './event';
 
 /** Atributos técnico-físicos del jugador (1-99). */
@@ -82,7 +82,69 @@ export const ATTRIBUTE_LABELS: Record<keyof Attributes, string> = {
   goalkeeping: 'Portería',
 };
 
-/** Pesos de cada atributo en la media global (OVR) según posición. */
+/** Etiquetas legibles de cada subposición. */
+export const ROLE_LABELS: Record<PlayerRole, string> = {
+  [PlayerRole.Goalkeeper]: 'Portero',
+
+  [PlayerRole.CentreBack]: 'Defensa central',
+  [PlayerRole.LeftBack]: 'Lateral izquierdo',
+  [PlayerRole.RightBack]: 'Lateral derecho',
+  [PlayerRole.LeftWingBack]: 'Carrilero izquierdo',
+  [PlayerRole.RightWingBack]: 'Carrilero derecho',
+
+  [PlayerRole.DefensiveMidfielder]: 'Mediocentro defensivo',
+  [PlayerRole.CentralMidfielder]: 'Mediocentro clásico',
+  [PlayerRole.AttackingMidfielder]: 'Media punta',
+  [PlayerRole.LeftMidfielder]: 'Mediocentro izquierdo',
+  [PlayerRole.RightMidfielder]: 'Mediocentro derecho',
+
+  [PlayerRole.Striker]: 'Delantero centro',
+  [PlayerRole.FalseNine]: 'Falso nueve',
+  [PlayerRole.LeftWinger]: 'Extremo izquierdo',
+  [PlayerRole.RightWinger]: 'Extremo derecho',
+};
+
+/** Grupo posicional al que pertenece cada subposición. */
+export const ROLE_GROUP: Record<PlayerRole, Position> = {
+  [PlayerRole.Goalkeeper]: Position.Goalkeeper,
+
+  [PlayerRole.CentreBack]: Position.Defender,
+  [PlayerRole.LeftBack]: Position.Defender,
+  [PlayerRole.RightBack]: Position.Defender,
+  [PlayerRole.LeftWingBack]: Position.Defender,
+  [PlayerRole.RightWingBack]: Position.Defender,
+
+  [PlayerRole.DefensiveMidfielder]: Position.Midfielder,
+  [PlayerRole.CentralMidfielder]: Position.Midfielder,
+  [PlayerRole.AttackingMidfielder]: Position.Midfielder,
+  [PlayerRole.LeftMidfielder]: Position.Midfielder,
+  [PlayerRole.RightMidfielder]: Position.Midfielder,
+
+  [PlayerRole.Striker]: Position.Forward,
+  [PlayerRole.FalseNine]: Position.Forward,
+  [PlayerRole.LeftWinger]: Position.Forward,
+  [PlayerRole.RightWinger]: Position.Forward,
+};
+
+/** Grupo posicional de una subposición. */
+export function roleGroup(role: PlayerRole): Position {
+  return ROLE_GROUP[role];
+}
+
+/** Subposiciones que pertenecen a un grupo. */
+export function rolesOfGroup(group: Position): PlayerRole[] {
+  return (Object.keys(ROLE_GROUP) as PlayerRole[]).filter((role) => ROLE_GROUP[role] === group);
+}
+
+/** Subposición por defecto de cada grupo (para migrar partidas antiguas). */
+export const DEFAULT_ROLE_BY_POSITION: Record<Position, PlayerRole> = {
+  [Position.Goalkeeper]: PlayerRole.Goalkeeper,
+  [Position.Defender]: PlayerRole.CentreBack,
+  [Position.Midfielder]: PlayerRole.CentralMidfielder,
+  [Position.Forward]: PlayerRole.Striker,
+};
+
+/** Pesos de cada atributo en la media global (OVR) según el grupo. */
 const OVR_WEIGHTS: Record<Position, Partial<Record<keyof Attributes, number>>> = {
   [Position.Goalkeeper]: {
     goalkeeping: 0.62,
@@ -117,9 +179,45 @@ const OVR_WEIGHTS: Record<Position, Partial<Record<keyof Attributes, number>>> =
   },
 };
 
-/** Calcula la media global ponderada por posición. */
-export function ovrFromAttributes(position: Position, attributes: Attributes): number {
-  const weights = OVR_WEIGHTS[position];
+/**
+ * Ajustes de pesos por subposición sobre la base de su grupo. Se suman y el
+ * resultado se normaliza; un rol sin ajuste reproduce el OVR base del grupo.
+ */
+const ROLE_OVR_ADJUST: Partial<Record<PlayerRole, Partial<Record<keyof Attributes, number>>>> = {
+  [PlayerRole.CentreBack]: { defending: 0.06, physical: 0.04, passing: -0.04, pace: -0.02 },
+  [PlayerRole.LeftBack]: { pace: 0.06, defending: 0.02, physical: -0.03, dribbling: -0.02 },
+  [PlayerRole.RightBack]: { pace: 0.06, defending: 0.02, physical: -0.03, dribbling: -0.02 },
+  [PlayerRole.LeftWingBack]: { pace: 0.1, passing: 0.03, defending: -0.05, physical: -0.04 },
+  [PlayerRole.RightWingBack]: { pace: 0.1, passing: 0.03, defending: -0.05, physical: -0.04 },
+  [PlayerRole.DefensiveMidfielder]: { defending: 0.07, physical: 0.04, shooting: -0.06, dribbling: -0.03 },
+  [PlayerRole.CentralMidfielder]: { passing: 0.05, defending: 0.02, dribbling: -0.02, shooting: -0.02 },
+  [PlayerRole.AttackingMidfielder]: { passing: 0.04, shooting: 0.05, dribbling: 0.03, defending: -0.08 },
+  [PlayerRole.LeftMidfielder]: { pace: 0.06, passing: 0.03, defending: -0.04, shooting: -0.03 },
+  [PlayerRole.RightMidfielder]: { pace: 0.06, passing: 0.03, defending: -0.04, shooting: -0.03 },
+  [PlayerRole.Striker]: { shooting: 0.06, physical: 0.02, passing: -0.04 },
+  [PlayerRole.FalseNine]: { passing: 0.06, dribbling: 0.03, shooting: -0.03, physical: -0.04 },
+  [PlayerRole.LeftWinger]: { pace: 0.09, dribbling: 0.06, shooting: -0.05, defending: -0.03 },
+  [PlayerRole.RightWinger]: { pace: 0.09, dribbling: 0.06, shooting: -0.05, defending: -0.03 },
+};
+
+/** Pesos de OVR de una subposición: base de su grupo + ajuste, normalizados. */
+export function ovrWeights(role: PlayerRole): Partial<Record<keyof Attributes, number>> {
+  const merged: Partial<Record<keyof Attributes, number>> = { ...OVR_WEIGHTS[roleGroup(role)] };
+  for (const [key, delta] of Object.entries(ROLE_OVR_ADJUST[role] ?? {}) as [keyof Attributes, number][]) {
+    const next = (merged[key] ?? 0) + delta;
+    if (next > 0) merged[key] = next;
+    else delete merged[key];
+  }
+  const total = Object.values(merged).reduce<number>((acc, value) => acc + (value ?? 0), 0);
+  if (total > 0) {
+    for (const key of Object.keys(merged) as (keyof Attributes)[]) merged[key] = (merged[key] ?? 0) / total;
+  }
+  return merged;
+}
+
+/** Calcula la media global ponderada según la subposición del futbolista. */
+export function ovrFromAttributes(role: PlayerRole, attributes: Attributes): number {
+  const weights = ovrWeights(role);
   let total = 0;
   for (const key of Object.keys(weights) as (keyof Attributes)[]) {
     total += attributes[key] * (weights[key] ?? 0);
@@ -201,6 +299,14 @@ export interface Contract {
   releaseClause: number;
 }
 
+/** Convocatoria temporal con el primer equipo de un club (filial). */
+export interface PlayerCallUp {
+  /** Equipo (primer equipo) con el que se disputa la convocatoria. */
+  teamId: string;
+  /** Partidos que quedan por disputar con el primer equipo. */
+  matches: number;
+}
+
 /**
  * Cesión temporal a otro club. Mientras está activa, `contract` apunta al club
  * cedente para el que juega el futbolista, y este objeto conserva el club
@@ -228,6 +334,8 @@ export interface Player {
   nationality: string;
   countryCode: string;
   position: Position;
+  /** Subposición específica dentro del grupo. */
+  role: PlayerRole;
   number: number;
   foot: Foot;
   attributes: Attributes;
@@ -257,6 +365,10 @@ export interface Player {
   loan: Loan | null;
   /** Penalizador temporal de minutos decidido por el cuerpo técnico. */
   rolePenalty: RolePenalty | null;
+  /** Convocatoria temporal con el primer equipo (filial), o null. */
+  callUp: PlayerCallUp | null;
+  /** Confianza del primer equipo en el jugador (0-100). */
+  firstTeamTrust: number;
 }
 
 /** ¿Está disponible para jugar? */

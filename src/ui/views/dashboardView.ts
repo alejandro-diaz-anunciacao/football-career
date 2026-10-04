@@ -3,6 +3,7 @@ import { CONFIG } from '../../data/config';
 import {
   ATTRIBUTE_LABELS,
   MessageKind,
+  ROLE_LABELS,
   TacticalApproach,
   averageRating,
   potentialHint,
@@ -197,8 +198,8 @@ function nextMatchCard(state: CareerState, ctx: ViewContext): HTMLElement {
         ? `Jornada ${fixture.round} · ${context.competitionName}`
         : `${context.competitionName} · Ronda ${fixture.round}`,
     subtitle: `${isHome ? 'Juegas en casa' : 'Juegas a domicilio'} · ${formatGameDate(context.date)}${
-      ticksAhead > 0 ? ' · el calendario avanzará hasta este partido' : ''
-    }`,
+      context.callUp ? ' · Convocado con el primer equipo' : ''
+    }${ticksAhead > 0 ? ' · el calendario avanzará hasta este partido' : ''}`,
     accent: true,
     body: [
       el(
@@ -324,7 +325,7 @@ export const dashboardView: ViewFactory = (ctx: ViewContext) => {
             el('span', { class: 'player-hero__name', text: `${player.number}. ${player.name}` }),
             el('span', {
               class: 'player-hero__meta',
-              text: `${player.age} años · ${player.position} · ${player.nationality} · ${player.foot}`,
+              text: `${player.age} años · ${ROLE_LABELS[player.role]} · ${player.nationality} · ${player.foot}`,
             }),
             el(
               'div',
@@ -332,6 +333,8 @@ export const dashboardView: ViewFactory = (ctx: ViewContext) => {
               badge(role, role === 'Titular' ? 'accent' : role === 'Suplente' ? 'flame' : ''),
               player.injuryWeeks > 0 ? badge(`Baja ${player.injuryWeeks} sem`, 'danger') : null,
               player.loan ? badge('Cedido', 'flame') : null,
+              player.callUp ? badge('Convocado primer equipo', 'accent') : null,
+              team?.parentTeamId ? badge(`Filial de ${state.teams[team.parentTeamId]?.name ?? ''}`, 'gold') : null,
               careerService.windowOpen() ? badge('Mercado abierto', 'gold') : null,
               badge(potentialHint(player), 'azure'),
             ),

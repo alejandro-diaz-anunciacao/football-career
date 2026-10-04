@@ -21,8 +21,10 @@ Simulador de carrera de futbolista (SPA de una sola página). Empiezas con 16 a�
 en la categoría más baja de tu país y progresas por 26 ligas / 468 clubes (18 por
 liga) repartidos en 5 continentes y 13 países. Incluye partido interactivo minuto
 a minuto, progresión con potencial oculto, mercado de fichajes, copas y continentales,
-selecciones nacionales, **eventos aleatorios de carrera** con decisiones, ascensos/
-descensos y guardado de hasta 12 partidas simultáneas.
+selecciones nacionales, **eventos aleatorios de carrera** con decisiones, **15
+subposiciones** (grupo + rol específico), **equipos filiales con ascenso al primer
+equipo** por rendimiento, ascensos/descensos y guardado de hasta 12 partidas
+simultáneas.
 
 - **Stack:** Vanilla TypeScript estricto + Vite. Sin frameworks, sin runtime de UI.
 - **Dependencias de producción:** ninguna. Solo `devDependencies`:
@@ -145,7 +147,8 @@ acordarlo.
 - **Migración de campos:** `storageService.migrate(state)` rellena campos nuevos
   (`recentResults`, `offers`, `inbox`, `trophies`, `history`, `trainingFocus`,
   `seasonGrowth`, `lastGrowth`, `player.loan`, `player.nationalStats`,
-  `player.rolePenalty`, `calendar`, `competitions`, `nationalCompetitions`,
+  `player.rolePenalty`, `player.role`, `player.callUp`, `player.firstTeamTrust`,
+  `calendar`, `competitions`, `nationalCompetitions`,
   `friendlies`, `tick`, `pendingEvent`, `lastEventRound`, `eventsThisSeason`,
   `eventHistory`, `lastEventResult`) y normaliza `TransferOffer.kind`/`projectedRole` y los campos de
   las `Competition` (`format`/`stage`/`tier`/`mainEntrants`); además actualiza
@@ -174,6 +177,24 @@ acordarlo.
 - **Rol con banda de rotación:** `CONFIG.SQUAD` fija márgenes generosos
   (`STARTER_GAP`, `BENCH_GAP`) y un **bonus de promesa** (edad y margen hasta el
   potencial). Un jugador algo por debajo del club sigue entrando en la rotación.
+- **Filiales (cantera):** `Team.parentTeamId` (en el filial) y `Team.reserveTeamId`
+  (en el primer equipo), enlazados por `data/filials.ts` + `worldBuilder.linkFilials`.
+  `Player.callUp` guarda una convocatoria temporal con el primer equipo y
+  `Player.firstTeamTrust` (0-100) la confianza del primer equipo. Con una
+  convocatoria activa, `userFixtureAt()` devuelve la jornada del **padre** (override),
+  `createUserMatch` inyecta al jugador con `getSquad(..., force)` y `applyUserMatch`
+  localiza la jornada por `homeId/awayId/round` (no por `current.teamId`) y consume la
+  convocatoria. Dos eventos, `filial-callup`/`filial-promotion`, con los efectos
+  `callUp`, `promoteToParent` y `trust`; el ascenso lo ejecuta `promoteToParentTeam()`.
+- **Subposiciones:** `PlayerRole` (15 roles) con `roleGroup()`; `Position` sigue
+  siendo el grupo (`POR/DEF/MED/DEL`). La competencia por el puesto **mezcla** el
+  mejor rival de la misma subposición y del grupo (`CONFIG.SQUAD.SUBROLE_WEIGHT`,
+  `roleEngine.squadCompetitionLevel`). Las plantillas generan las 15 subposiciones
+  con atributos propios; el rol ajusta OVR (`ROLE_OVR_ADJUST`), generación
+  (`ROLE_PROFILE_ADJUST`/`ROLE_SHAPE_ADJUST`), acciones de partido
+  (`ROLE_ACTION_ADJUST`), volumen de pase (`ROLE_PASS_ADJUST`), nota
+  (`ROLE_RATING_ADJUST`), desarrollo (`ROLE_DEVELOPMENT_ADJUST`), foco por defecto
+  (`DEFAULT_FOCUS`) y umbral de goles.
 - **Crecimiento sin minutos:** `applyDevelopmentTick` ya no exige
   `appearances > 0`; sin minutos reparte una fracción reducida e intermitente
   (`CONFIG.PROGRESSION.TRAINING_ONLY_FACTOR`). Rompe el bucle
@@ -261,6 +282,11 @@ acordarlo.
   y `eventHistory[id]` guarda la temporada para el cooldown.
 - `rolePenalty` lo resta `projectRole` (menos minutos) y se decrementa cada jornada
   de liga; se limpia al cerrar la temporada.
+- **Filiales:** `filial-callup` (convocatoria de un partido; aceptar activa `callUp`
+  y suma confianza, rechazar la resta) y `filial-promotion` (ascenso definitivo con
+  nuevo contrato). `finishSeason` fuerza la oferta de ascenso al curso siguiente si
+  el rendimiento y la confianza lo merecen. `firstTeamTrust` sube/baja según la
+  actuación en las convocatorias.
 - **Desenlace visible:** `resolveEvent` devuelve un `EventResolutionSummary` con
   `changes: EventChange[]` (`up`/`down`/`neutral`; la forma se muestra cualitativa
   `↑`/`↓`). El vestuario abre un **modal** al resolver y guarda
@@ -272,15 +298,20 @@ acordarlo.
 
 - **`Player`**: atributos (7: pace, shooting, passing, dribbling, defending,
   physical, goalkeeping), `ovr` recalculado siempre desde atributos con
-  `ovrFromAttributes` (pesos por posición), `potential` oculto, `form` (−1..1),
+  `ovrFromAttributes` (pesos por subposición), `potential` oculto, `form` (−1..1),
   `morale`/`fitness` (0..100), `injuryWeeks`, `trainingFocus`, `seasonGrowth`,
   `lastGrowth`, `seasonStats`/`careerStats`/`nationalStats`, `contract`,
   `loan` (`Loan | null`), `rolePenalty` (`RolePenalty | null`, penalizador
-  temporal de minutos que consume `projectRole`).
+  temporal de minutos que consume `projectRole`), `position` (grupo),
+  `role` (`PlayerRole`, subposición específica), `callUp`
+  (`PlayerCallUp | null`, convocatoria con el primer equipo) y `firstTeamTrust`
+  (0-100, confianza del primer equipo). `ROLE_LABELS` traduce a español.
 - **`NationalTeam`** (`models/nation.ts`): `id` (`nat.<código>`), `name`, `code`,
   `confederation`, `strength`. `nationAsTeam` lo convierte en `Team` para el motor.
-- **`Team`**: `attack`/`midfield`/`defense`/`overall` (1-99) y `reputation` (1-100).
-  `teamOverall()` pondera 0.34/0.33/0.33.
+- **`Team`** y **`SquadMember`**: `attack`/`midfield`/`defense`/`overall` (1-99) y
+  `reputation` (1-100). `teamOverall()` pondera 0.34/0.33/0.33. `Team` puede llevar
+  `parentTeamId` (es un filial) y `reserveTeamId` (tiene cantera). Cada `SquadMember`
+  lleva `position` (grupo) y `role` (subposición); las plantillas no se persisten.
 - **`League`/`Fixture`/`StandingRow`**: `sortStandings` aplica puntos → diferencia
   de goles → goles a favor → id. `tier` 1 = máxima categoría.
 - **`Competition`**: copa o continental. `kind`, `format` (`knockout`/`groups`/`league`),
@@ -305,7 +336,7 @@ acordarlo.
 | `poisson.ts` | `samplePoisson` (Knuth), `poissonPmf`, `expectedGoals`, `midfieldAdjustment`, `matchLambdas`, `outcomeProbabilities`, `mostLikelyScoreline`. |
 | `matchEngine.ts` | `MatchSimulation` (plan completo + revelado con `step()`), `selectStartingEleven` (4-4-2), `simulateQuickMatch`, `previewMatch`, `marketValue`, `suggestedWage`. |
 | `ratingEngine.ts` | `computeRating` (1.0-10.0 ponderada por posición y resultado), `ratingLabel`, `ratingTone`. |
-| `roleEngine.ts` | `projectRole(player, team, squad?)`: rol (`Starter`/`Bench`/`NotCalled`) y minutos estimados. Banda de rotación amplia + bonus de promesa. **Fuente única del rol** (la usan `careerService` con plantilla real y el mercado con la media del club). |
+| `roleEngine.ts` | `projectRole(player, team, squad?)`: rol (`Starter`/`Bench`/`NotCalled`) y minutos estimados. Banda de rotación amplia + bonus de promesa. **Competencia mezclada** subposición/grupo (`squadCompetitionLevel`) y nivel por subposición (`estimatedRoleLevel`). **Fuente única del rol** (la usan `careerService` con plantilla real y el mercado con la media del club). |
 | `calendar.ts` | `roundDate(season, round)` y `windowForRound(round)`: fechas reales de cada jornada y ventana de fichajes activa. |
 | `schedule.ts` | `buildSeasonSchedule(season)`: lista de tandas (liga y copa entre semana) con su fecha. |
 | `cupEngine.ts` | `buildCup`/`buildCups`, `simulateCupTick`, `cupLegForTeam`, `buildBracketRound`, `countBracketRounds`: cuadro de eliminatoria (previa o exentos), ida/vuelta, resolución por agregado/penaltis. |
@@ -314,7 +345,7 @@ acordarlo.
 | `nationalEngine.ts` | `nationAsTeam`/`nationTeams`, `buildQualifying` (liguilla por confederación), `qualifiedFrom`, `buildTournament` (grupos) y `finishTournamentGroups` (mejores terceros → eliminatoria). |
 | `progressionEngine.ts` | Plan de temporada, avances parciales (`applyDevelopmentTick`), cierre (`applySeasonGrowth`), `agePlayer`, `recoverWeekly`, `updateForm`, `mergeSeasonIntoCareer`. |
 | `leagueManager.ts` | Calendario (círculo), clasificación, ascensos/descensos (`processPromotionRelegation`, `processCountryPyramid`). |
-| `marketEngine.ts` | `interestedTeams`, `generateOffers`, `chooseDebutTeam`. |
+| `marketEngine.ts` | `interestedTeams`, `generateOffers`, `chooseDebutTeam`. Las ofertas de un filial se marcan con `filialOf` (cantera). |
 | `eventEngine.ts` | Eventos aleatorios: `buildEventContext`, `pickEvent` (elegibles + cooldown + sorteo ponderado), `createPendingEvent`, `resolveEvent` (rama arriesgada y efectos). Los efectos de mercado se devuelven al servicio. |
 
 ## 8. Recetas de verificación (sin test runner)
@@ -364,6 +395,12 @@ google-chrome --headless=new --disable-gpu --no-sandbox --remote-debugging-port=
   internacionales y clasificación/torneos de selecciones.
 - **Vista de competiciones** (`competitionsView`): selector de copa y cuadro de
   eliminatorias con las piernas y el campeón.
+- **Creación (`creationView`):** selector en dos pasos — grupo posicional → subposición
+  (`rolesOfGroup` + `ROLE_LABELS`). El resto de vistas (vestuario, cabecera, guardados,
+  historial, selección) muestran `ROLE_LABELS[player.role]`.
+- **Filiales en la UI:** badge «Filial de X» y «Convocado primer equipo» en el
+  vestuario; el mercado marca las ofertas de filial como «Cantera de X». El aviso de
+  convocatoria aparece en la ficha del próximo partido y en las decisiones de evento.
 - **Eventos aleatorios en la UI:** el vestuario pinta una tarjeta de decisión
   (`eventCard`) con las opciones; al resolverla se abre un **modal de desenlace**
   (`showEventOutcome`) con la narrativa y los chips de consecuencias, y queda la
@@ -395,7 +432,8 @@ google-chrome --headless=new --disable-gpu --no-sandbox --remote-debugging-port=
 - ⚠️ Mantén **18 equipos por liga** (número par): `generateFixtures` devuelve `[]`
   con un número impar.
 - `CONFIG.CAREER.MAX_SEASONS = 22`, `RETIREMENT_AGE = 39`, `SQUAD_SIZE = 22`
-  (3 POR · 7 DEF · 7 MED · 5 DEL).
+  (3 POR · 7 DEF · 7 MED · 5 DEL). `SQUAD_SLOTS` reparte además las 15 subposiciones
+  entre los 22 dorsales.
 - Fuerzas del mundo: `base = topOverall − (index/(total−1))·18.5` + ruido; los
   atributos y reputación se derivan de ahí. `topOverall` por tier (p. ej. ES:
   85/73/63/55).
@@ -418,6 +456,21 @@ google-chrome --headless=new --disable-gpu --no-sandbox --remote-debugging-port=
   `/bugs <descripción>`. Ambos fuerzan el agente `plan` (solo planifican y
   diagnostican; no editan archivos) y **no proponen commits**: el usuario commitea
   por su cuenta. Para aplicar el arreglo o implementar hay que cambiar de agente.
+- ⚠️ **Subposiciones:** `PlayerRole` se serializa en el guardado (valores string
+  estables). Al añadir un rol hay que actualizar `roleGroup`, `ROLE_LABELS`,
+  `DEFAULT_ROLE_BY_POSITION`, `rolesOfGroup`, `ovrWeights` y todas las tablas
+  `ROLE_*_ADJUST`; la migración deriva `player.role` de `player.position`.
+- ⚠️ `ovrFromAttributes` recibe ahora la **subposición** (`role`), no la posición:
+  usarla con el grupo desincronizaría el OVR.
+- ⚠️ Las plantillas de clubes no se persisten: al cambiar la generación por rol se
+  regeneran (deterministas por hash del equipo).
+- ⚠️ **Filiales:** el nombre del filial debe existir en `data/leagues.ts` (las ligas
+  mantienen 18 equipos; los filiales se añadieron **sustituyendo** clubes). El vínculo
+  se resuelve por país + nombre en `worldBuilder.linkFilials`. `getSquad(team, player,
+  force)` inyecta al jugador aunque su contrato sea del filial (convocatorias).
+- ⚠️ Con `player.callUp` activo, `userFixtureAt` devuelve la jornada del padre y
+  `applyUserMatch` localiza el partido por `homeId/awayId/round`; no vuelvas a usar
+  `current.teamId` para buscar la jornada.
 
 ## 11. Mapa de archivos
 
@@ -427,7 +480,8 @@ src/
 ├── models/                     # enums, player, team, nation, league, competition, match,
 │                               # event, career, index
 ├── data/                       # config, continents, names, leagues, cups, continental,
-│                               # nations, nationalTournaments, events, worldBuilder, index
+│                               # nations, nationalTournaments, events, filials,
+│                               # worldBuilder, index
 ├── engine/                     # poisson, matchEngine, ratingEngine, roleEngine, calendar,
 │                               # schedule, cupEngine, groupEngine, continentalEngine, nationalEngine,
 │                               # progressionEngine, leagueManager, marketEngine, eventEngine

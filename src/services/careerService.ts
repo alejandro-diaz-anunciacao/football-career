@@ -5,7 +5,7 @@ import { buildWorld } from '../data/worldBuilder';
 import {
   MatchEventType,
   MessageKind,
-  Position,
+  PlayerRole,
   SeasonPhase,
   SquadRole,
   addStats,
@@ -34,7 +34,7 @@ import type {
 import { currentStandings, fixtureForTeam, fixturesOfRound, positionOf, processCountryPyramid, resetLeagueForSeason, applyFixtureResult, type MovementLog } from '../engine/leagueManager';
 import { MatchSimulation, marketValue, simulateQuickMatch, suggestedWage } from '../engine/matchEngine';
 import { generateLoanOffers, generateOffers, chooseDebutTeam } from '../engine/marketEngine';
-import { projectRole } from '../engine/roleEngine';
+import { projectRole, squadCompetitionLevel } from '../engine/roleEngine';
 import {
   buildCups,
   countBracketRounds,
@@ -122,6 +122,8 @@ export interface NextUserFixture {
   date: GameDate;
   /** Índice de la tanda dentro del calendario de la temporada. */
   tickIndex: number;
+  /** El partido se juega por una convocatoria con el primer equipo (filial). */
+  callUp?: boolean;
 }
 
 /** Próximo partido del usuario junto con las tandas que hay que avanzar hasta él. */
@@ -304,6 +306,26 @@ function userFixtureAt(tickIndex: number): NextUserFixture | null {
   if (!tick) return null;
   const date = tick.date;
 
+  // Convocatoria con el primer equipo: se juega la jornada del padre.
+  const callUp = current.player.callUp;
+  if (callUp && callUp.matches > 0 && tick.kind === 'league') {
+    const callTeam = current.teams[callUp.teamId];
+    const callLeague = callTeam ? current.leagues[callTeam.leagueId] : undefined;
+    const fixture = callLeague ? fixtureForTeam(callLeague, tick.round, callTeam!.id) : null;
+    if (callTeam && callLeague && fixture) {
+      return {
+        fixture,
+        competitionId: callLeague.id,
+        competitionName: callLeague.name,
+        kind: 'league',
+        userTeamId: callTeam.id,
+        date,
+        tickIndex,
+        callUp: true,
+      };
+    }
+  }
+
   if (tick.kind === 'league') {
     const league = currentLeague();
     if (!league) return null;
@@ -413,10 +435,17 @@ function nextCompetition(): { id: string; name: string; kind: 'league' | 'cup' |
   return context ? { id: context.competitionId, name: context.competitionName, kind: context.kind } : null;
 }
 
-/** Rol del futbolista en el próximo partido (club o selección). */
+/** Rol del futbolista en el próximo partido (club, selección o convocatoria). */
 function nextUserRole(): SquadRole {
   const context = nextUserFixture();
-  return context?.kind === 'national' ? nationalRole() : squadRole();
+  if (!context) return squadRole();
+  if (context.kind === 'national') return nationalRole();
+  if (context.callUp) {
+    const current = state;
+    const team = current ? current.teams[context.userTeamId] : undefined;
+    if (current && team) return projectRole(current.player, team, getSquad(team, current.player, true)).role;
+  }
+  return squadRole();
 }
 
 /**
@@ -462,10 +491,8 @@ function nationalBestOvr(): number {
   if (!current || !nation) return 60;
   const team = nationTeams()[nation.id];
   if (!team) return nation.strength;
-  const rivals = getNationalSquad(team)
-    .filter((member) => member.position === current.player.position)
-    .sort((a, b) => b.ovr - a.ovr);
-  return rivals[0]?.ovr ?? nation.strength;
+  const squad = getNationalSquad(team);
+  return squad.length > 0 ? squadCompetitionLevel(current.player, squad) : nation.strength;
 }
 
 /** ¿Está convocado con su selección? */
@@ -541,6 +568,7 @@ function restartIdentity(slotId: string): PlayerCreationInput | null {
     lastName: previous.player.lastName,
     countryCode: previous.player.countryCode,
     position: previous.player.position,
+    role: previous.player.role,
     number: previous.player.number,
     foot: previous.player.foot,
   };
@@ -739,32 +767,38 @@ function createUserMatch(approach: TacticalApproach): MatchSimulation | null {
   if (!next) return null;
 
   const national = next.kind === 'national';
-  const nation = userNation();
-  const team = currentTeam();
-  const userTeamId = national ? nation?.id : team?.id;
-  if (!userTeamId) return null;
+  const userTeamId = next.userTeamId;
+  const userTeam = teamFor(userTeamId);
+  if (!userTeam) return null;
 
   const fixture = next.fixture;
   const homeTeam = teamFor(fixture.homeId);
   const awayTeam = teamFor(fixture.awayId);
   if (!homeTeam || !awayTeam) return null;
 
-  const injectAt = (id: string): Player | undefined =>
-    id === userTeamId ? current.player : undefined;
+  // En una convocatoria se inyecta al jugador aunque su contrato sea del filial.
+  const force = next.callUp === true;
+  const injectAt = (id: string): Player | undefined => (id === userTeamId ? current.player : undefined);
 
   const homeSquad = national
     ? getNationalSquad(homeTeam, injectAt(homeTeam.id))
-    : getSquad(homeTeam, injectAt(homeTeam.id));
+    : getSquad(homeTeam, injectAt(homeTeam.id), force);
   const awaySquad = national
     ? getNationalSquad(awayTeam, injectAt(awayTeam.id))
-    : getSquad(awayTeam, injectAt(awayTeam.id));
+    : getSquad(awayTeam, injectAt(awayTeam.id), force);
+
+  const userRole = national
+    ? nationalRole()
+    : next.callUp
+      ? projectRole(current.player, userTeam, getSquad(userTeam, current.player, true)).role
+      : squadRole();
 
   return new MatchSimulation({
     home: { team: homeTeam, squad: homeSquad },
     away: { team: awayTeam, squad: awaySquad },
     userTeamId,
     userPlayer: current.player,
-    userRole: national ? nationalRole() : squadRole(),
+    userRole,
     approach,
     round: fixture.round,
     competitionId: next.competitionId,
@@ -793,7 +827,11 @@ function applyUserMatch(result: MatchResult): void {
 
   const league = current.leagues[result.competitionId];
   if (league) {
-    const fixture = fixtureForTeam(league, result.round, current.teamId);
+    // Se localiza por local/visitante y jornada: vale también para una
+    // convocatoria con el primer equipo (la liga del filial no coincide).
+    const fixture = league.fixtures.find(
+      (item) => item.round === result.round && item.homeId === result.homeId && item.awayId === result.awayId,
+    );
     if (fixture) applyFixtureResult(league, fixture, result.homeGoals, result.awayGoals);
   } else {
     const competition =
@@ -857,6 +895,16 @@ function applyUserMatch(result: MatchResult): void {
   }
 
   player.morale = Math.max(0, Math.min(100, player.morale + (result.userMotm ? 5 : result.userOutcome === 'win' ? 2 : -1)));
+
+  // Consumo de la convocatoria: la confianza sube o baja según la actuación.
+  const callUp = player.callUp;
+  if (callUp && current.teams[callUp.teamId]?.leagueId === result.competitionId) {
+    const rating = result.userRating ?? 0;
+    if (rating >= 7) player.firstTeamTrust = Math.min(100, player.firstTeamTrust + 3);
+    else if (rating < 6) player.firstTeamTrust = Math.max(0, player.firstTeamTrust - 2);
+    callUp.matches -= 1;
+    if (callUp.matches <= 0) player.callUp = null;
+  }
 
   current.lastMatch = result;
   current.recentResults = [result, ...current.recentResults].slice(0, 5);
@@ -1378,6 +1426,19 @@ function resolveEvent(eventId: string, choiceId: string): EventResolutionSummary
       fresh > 0 ? ` ${fresh} club(es) han presentado una oferta.` : ' De momento ninguna oferta en firme.';
   }
 
+  if (resolution.callUpMatches > 0) {
+    const parentId = currentTeam()?.parentTeamId;
+    if (parentId) {
+      current.player.callUp = { teamId: parentId, matches: resolution.callUpMatches };
+      const parent = current.teams[parentId];
+      resolution.narrative += ` Jugarás el próximo partido con ${parent?.name ?? 'el primer equipo'}.`;
+    }
+  }
+
+  if (resolution.promoteToParent) {
+    promoteToParentTeam();
+  }
+
   const summary: EventResolutionSummary = {
     eventId: def.id,
     icon: pending.icon,
@@ -1402,6 +1463,54 @@ function resolveEvent(eventId: string, choiceId: string): EventResolutionSummary
   );
   persist();
   return summary;
+}
+
+/** Asciende al futbolista del filial al primer equipo con un nuevo contrato. */
+function promoteToParentTeam(): void {
+  const current = requireState();
+  const player = current.player;
+  const team = currentTeam();
+  const parentId = team?.parentTeamId;
+  const parent = parentId ? current.teams[parentId] : undefined;
+  if (!parent) return;
+
+  const previous = team?.name ?? 'el filial';
+  current.teamId = parent.id;
+  player.callUp = null;
+  player.rolePenalty = null;
+  player.contract = {
+    teamId: parent.id,
+    wage: Math.max(
+      CONFIG.MARKET.MIN_WAGE,
+      Math.round(suggestedWage(player.ovr) * (1 + parent.reputation / 160)),
+    ),
+    years: 3,
+    signedSeason: current.season,
+    releaseClause: Math.max(1, Math.round(marketValue(player) * 2)),
+  };
+  player.firstTeamTrust = Math.min(100, player.firstTeamTrust + CONFIG.FILIAL.PROMOTION_TRUST_BONUS);
+
+  pushMessage(
+    MessageKind.Info,
+    '¡Ascenso al primer equipo!',
+    `${player.name} deja ${previous} y sube al primer equipo de ${parent.name}. Firma por tres temporadas.`,
+    current.season,
+    current.currentRound,
+  );
+}
+
+/** Deja preparada la decisión de ascenso al empezar el nuevo curso. */
+function forceFilialPromotionOffer(): void {
+  const current = requireState();
+  if (current.pendingEvent) return;
+  const def = CAREER_EVENTS.find((item) => item.id === 'filial-promotion');
+  if (!def) return;
+  const ctx = buildEventContext(current, squadRole());
+  if (!ctx) return;
+  const pending = createPendingEvent(def, ctx);
+  current.pendingEvent = pending;
+  current.eventHistory[def.id] = current.season;
+  pushMessage(MessageKind.Event, `${pending.icon} ${pending.title}`, pending.body, current.season, current.currentRound);
 }
 
 /**
@@ -1438,15 +1547,32 @@ function isSeasonClosed(): boolean {
 
 /* --------------------------------------------------------- Fin de temporada */
 
-/** Trofeo individual del máximo goleador según posición. */
-function goalThreshold(position: Position): number {
-  switch (position) {
-    case Position.Forward:
-      return 16;
-    case Position.Midfielder:
-      return 9;
-    case Position.Defender:
+/** Umbral de goles para el trofeo de máximo goleador según la subposición. */
+function goalThreshold(role: PlayerRole): number {
+  switch (role) {
+    case PlayerRole.Striker:
+      return 17;
+    case PlayerRole.FalseNine:
+      return 13;
+    case PlayerRole.LeftWinger:
+    case PlayerRole.RightWinger:
+      return 11;
+    case PlayerRole.AttackingMidfielder:
+      return 11;
+    case PlayerRole.LeftMidfielder:
+    case PlayerRole.RightMidfielder:
+      return 8;
+    case PlayerRole.CentralMidfielder:
+      return 8;
+    case PlayerRole.DefensiveMidfielder:
       return 4;
+    case PlayerRole.CentreBack:
+    case PlayerRole.LeftWingBack:
+    case PlayerRole.RightWingBack:
+      return 4;
+    case PlayerRole.LeftBack:
+    case PlayerRole.RightBack:
+      return 3;
     default:
       return 1;
   }
@@ -1492,7 +1618,7 @@ function finishSeason(): SeasonSummary {
   }
 
   // Premio individual de máximo goleador.
-  const topScorer = seasonStats.goals >= goalThreshold(player.position) && seasonStats.appearances >= 12;
+  const topScorer = seasonStats.goals >= goalThreshold(player.role) && seasonStats.appearances >= 12;
   if (topScorer && league && team) {
     const trophy: Trophy = {
       id: uid('trophy'),
@@ -1674,6 +1800,7 @@ function finishSeason(): SeasonSummary {
   current.eventsThisSeason = 0;
   current.lastEventResult = null;
   player.rolePenalty = null;
+  player.callUp = null;
 
   // Nuevas competiciones a partir de la clasificación del curso que acaba.
   const cupChampions: Record<string, string> = {};
@@ -1696,6 +1823,18 @@ function finishSeason(): SeasonSummary {
 
   current.competitions = nextCompetitions;
   buildNationalSeason(current.season);
+
+  // Cantera: si el primer equipo ya te quería, te espera la decisión de ascenso.
+  if (currentTeam()?.parentTeamId) {
+    const cfg = CONFIG.FILIAL;
+    if (
+      player.firstTeamTrust >= cfg.PROMOTION_MIN_TRUST &&
+      seasonStats.minutes >= cfg.PROMOTION_MIN_MINUTES &&
+      averageRating(seasonStats) >= cfg.PROMOTION_MIN_RATING
+    ) {
+      forceFilialPromotionOffer();
+    }
+  }
 
   persist();
 
@@ -1744,6 +1883,8 @@ function acceptOffer(offerId: string): boolean {
     player.contract.teamId = team.id;
     player.contract.wage = offer.wage;
     player.morale = Math.min(100, player.morale + 5);
+    player.callUp = null;
+    player.firstTeamTrust = 50;
     current.offers = current.offers.filter((item) => item.id !== offerId);
 
     pushMessage(
@@ -1769,12 +1910,17 @@ function acceptOffer(offerId: string): boolean {
     releaseClause: Math.max(1, Math.round(marketValue(player) * 2)),
   };
   player.morale = Math.min(100, player.morale + 8);
+  player.callUp = null;
+  player.firstTeamTrust = 50;
   current.offers = current.offers.filter((item) => item.id !== offerId);
 
+  const destination = offer.filialOf
+    ? `el filial de ${offer.filialOf} (${team.name}, ${offer.leagueName})`
+    : `${team.name} (${offer.leagueName})`;
   pushMessage(
     MessageKind.Transfer,
     '¡Fichaje confirmado!',
-    `${player.name} deja ${previousTeam?.name ?? 'su club'} para firmar por ${team.name} (${offer.leagueName}) durante ${offer.years} temporada(s).`,
+    `${player.name} deja ${previousTeam?.name ?? 'su club'} para firmar por ${destination} durante ${offer.years} temporada(s).`,
     current.season,
     current.currentRound,
   );
@@ -1837,7 +1983,7 @@ function markAllMessagesRead(): void {
 function setTrainingFocus(focus: AttributeKey): void {
   const current = state;
   if (!current) return;
-  if (!developmentFocusOptions(current.player.position).includes(focus)) return;
+  if (!developmentFocusOptions(current.player.role).includes(focus)) return;
   current.player.trainingFocus = focus;
   persist();
 }
@@ -1942,7 +2088,7 @@ export const careerService = {
 
   /** Atributos que el futbolista puede trabajar según su posición. */
   developmentOptions() {
-    return state ? developmentFocusOptions(state.player.position) : [];
+    return state ? developmentFocusOptions(state.player.role) : [];
   },
 
   /** Clasificación actual de la liga del usuario. */

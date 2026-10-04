@@ -57,8 +57,8 @@ export const LEAGUE_DEFS: readonly LeagueDef[] = [
     teams: [
       'Cultural Leonesa', 'SD Ponferradina', 'Zamora CF', 'Unionistas de Salamanca', 'Sestao River',
       'SD Amorebieta', 'CD Arenteiro', 'Barakaldo CF', 'Bilbao Athletic', 'Real Unión Club',
-      'SD Tarazona', 'CD Lugo', 'CD Ourense', 'Osasuna Promesas', 'Gimnàstic de Tarragona',
-      'Sevilla Atlético', 'Antequera CF', 'Celta Fortuna',
+      'Real Madrid Castilla', 'CD Lugo', 'CD Ourense', 'Osasuna Promesas', 'Gimnàstic de Tarragona',
+      'Sevilla Atlético', 'Barça Atlètic', 'Celta Fortuna',
     ],
   },
   {
@@ -72,9 +72,9 @@ export const LEAGUE_DEFS: readonly LeagueDef[] = [
     promotionSlots: 5,
     relegationSlots: 5,
     teams: [
-      'Laredo', 'Rayo Cantabria', 'SD Tropezón', 'CD Escobedo', 'SD Torina',
+      'Laredo', 'Rayo Cantabria', 'SD Tropezón', 'CD Escobedo', 'Atlético de Madrid B',
       'CD Cayón', 'Atlético Albericia', 'CD Colindres', 'CF Vimenor', 'SD Siete Villas',
-      'CD Cartes', 'SD Revilla', 'CD Castro', 'CD Naval', 'CD Barreda',
+      'CD Cartes', 'SD Revilla', 'CD Castro', 'CD Naval', 'Real Sociedad B',
       'CD Guarnizo', 'Textil Escudo', 'SD Selaya',
     ],
   },
@@ -196,9 +196,9 @@ export const LEAGUE_DEFS: readonly LeagueDef[] = [
     relegationSlots: 4,
     teams: [
       'Dynamo Dresde', 'Rot-Weiss Essen', '1. FC Saarbrücken', 'Arminia Bielefeld', 'Alemannia Aachen',
-      'MSV Duisburgo', 'TSV 1860 Múnich', 'Energie Cottbus', 'Wehen Wiesbaden', 'FC Ingolstadt',
+      'MSV Duisburgo', 'TSV 1860 Múnich', 'Borussia Dortmund II', 'Wehen Wiesbaden', 'FC Ingolstadt',
       'Waldhof Mannheim', 'VfL Osnabrück', 'SC Verl', 'SV Sandhausen', 'SpVgg Unterhaching',
-      'Hansa Rostock', 'Viktoria Colonia', 'Erzgebirge Aue',
+      'Hansa Rostock', 'Bayern Múnich II', 'Erzgebirge Aue',
     ],
   },
 
@@ -251,7 +251,7 @@ export const LEAGUE_DEFS: readonly LeagueDef[] = [
       'LR Vicenza', 'Calcio Padova', 'US Triestina', 'AC Renate', 'Alcione Milano',
       'Virtus Verona', 'Calcio Lecco', 'Aurora Pro Patria', 'Pergolettese', 'AlbinoLeffe',
       'FC Lumezzane', 'Union Clodiense', 'AC Trento', 'Arzignano Valchiampo', 'Giana Erminio',
-      'Novara Calcio', 'Union Brescia', 'Pro Vercelli',
+      'Novara Calcio', 'Juventus Next Gen', 'AC Milan Futuro',
     ],
   },
 

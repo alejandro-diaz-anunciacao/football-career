@@ -2,6 +2,7 @@ import { clamp, round } from '../utils/math';
 import type { Random } from '../utils/random';
 import type { League, Team } from '../models';
 import { LEAGUE_DEFS } from './leagues';
+import { FILIAL_DEFS } from './filials';
 
 /** Resultado de construir el mundo: ligas y equipos indexados por id. */
 export interface World {
@@ -135,7 +136,25 @@ export function buildWorld(rng: Random): World {
     });
   }
 
+  linkFilials(teams);
+
   return { leagues, teams };
+}
+
+/** Enlaza los equipos filiales con sus primeros equipos por país + nombre. */
+function linkFilials(teams: Record<string, Team>): void {
+  const byCountryName = new Map<string, Team>();
+  for (const team of Object.values(teams)) {
+    byCountryName.set(`${team.countryCode}:${team.name}`, team);
+  }
+
+  for (const def of FILIAL_DEFS) {
+    const filial = byCountryName.get(`${def.countryCode}:${def.filial}`);
+    const parent = byCountryName.get(`${def.countryCode}:${def.parent}`);
+    if (!filial || !parent) continue;
+    filial.parentTeamId = parent.id;
+    parent.reserveTeamId = filial.id;
+  }
 }
 
 /** Devuelve los equipos de una liga en el orden de su clasificación inicial. */

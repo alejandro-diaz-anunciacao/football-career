@@ -1,3 +1,4 @@
+import { ROLE_LABELS } from '../../models';
 import type { Competition, CompetitionGroup } from '../../models';
 import { nationById } from '../../data/nations';
 import { careerService } from '../../services/careerService';
@@ -151,7 +152,7 @@ export const nationalView: ViewFactory = (ctx: ViewContext) => {
         {},
         el('span', { class: 'page-head__eyebrow', text: 'Selección nacional' }),
         el('h1', { text: `${player.name} · ${nation.name}` }),
-        el('p', { class: 'text-muted', text: `${player.age} años · ${player.position} · ${player.ovr} OVR` }),
+        el('p', { class: 'text-muted', text: `${player.age} años · ${ROLE_LABELS[player.role]} · ${player.ovr} OVR` }),
       ),
       el('button', { class: 'btn btn--ghost', text: 'Volver al vestuario', on: { click: () => ctx.navigate('dashboard') } }),
     ),

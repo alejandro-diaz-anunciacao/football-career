@@ -1,7 +1,7 @@
 import { CONFIG } from '../data/config';
 import { clamp, round } from '../utils/math';
 import type { MatchOutcome, PlayerMatchStats, Position } from '../models';
-import { Position as Pos } from '../models';
+import { PlayerRole, Position as Pos, roleGroup } from '../models';
 
 /**
  * Calcula la calificación (1.0 - 10.0) ponderando las acciones del partido
@@ -41,9 +41,34 @@ const POSITION_WEIGHTS: Record<Position, Partial<Record<keyof PlayerMatchStats, 
   },
 };
 
-/** Peso posicional de una acción concreta. */
-function weightFor(position: Position, key: keyof PlayerMatchStats): number {
-  return POSITION_WEIGHTS[position][key] ?? 1;
+/**
+ * Ajuste del peso de cada acción según la subposición (multiplicador sobre la
+ * base del grupo): los carrileros y extremos suben por asistencias; los medios
+ * defensivos, por robos; las mediaspuntas, por pases de gol.
+ */
+const ROLE_RATING_ADJUST: Partial<Record<PlayerRole, Partial<Record<keyof PlayerMatchStats, number>>>> = {
+  [PlayerRole.Goalkeeper]: {},
+  [PlayerRole.CentreBack]: { tackles: 1.15, interceptions: 1.15, cleanSheet: 1.1 },
+  [PlayerRole.LeftBack]: { assists: 1.15, tackles: 1.05 },
+  [PlayerRole.RightBack]: { assists: 1.15, tackles: 1.05 },
+  [PlayerRole.LeftWingBack]: { assists: 1.2, keyPasses: 1.15, cleanSheet: 0.95 },
+  [PlayerRole.RightWingBack]: { assists: 1.2, keyPasses: 1.15, cleanSheet: 0.95 },
+  [PlayerRole.DefensiveMidfielder]: { tackles: 1.2, interceptions: 1.2, goals: 0.9 },
+  [PlayerRole.CentralMidfielder]: {},
+  [PlayerRole.AttackingMidfielder]: { keyPasses: 1.25, goals: 1.1, assists: 1.15, tackles: 0.8 },
+  [PlayerRole.LeftMidfielder]: { keyPasses: 1.1, assists: 1.1, goals: 0.95 },
+  [PlayerRole.RightMidfielder]: { keyPasses: 1.1, assists: 1.1, goals: 0.95 },
+  [PlayerRole.Striker]: { goals: 1.1, shotsOnTarget: 1.1, shots: 1.05 },
+  [PlayerRole.FalseNine]: { assists: 1.15, keyPasses: 1.2, goals: 0.95 },
+  [PlayerRole.LeftWinger]: { assists: 1.2, keyPasses: 1.15, goals: 0.9 },
+  [PlayerRole.RightWinger]: { assists: 1.2, keyPasses: 1.15, goals: 0.9 },
+};
+
+/** Peso de una acción según la subposición (base del grupo × ajuste del rol). */
+function weightFor(role: PlayerRole, key: keyof PlayerMatchStats): number {
+  const base = POSITION_WEIGHTS[roleGroup(role)][key] ?? 1;
+  const adjust = ROLE_RATING_ADJUST[role]?.[key] ?? 1;
+  return base * adjust;
 }
 
 /** Contribución base de una acción, antes de aplicar el peso posicional. */
@@ -101,7 +126,7 @@ const SCORING_KEYS: readonly (keyof PlayerMatchStats)[] = [
  * tiempo jugado escala las desviaciones respecto a la base.
  */
 export function computeRating(
-  position: Position,
+  role: PlayerRole,
   stats: PlayerMatchStats,
   outcome: MatchOutcome,
 ): number {
@@ -115,11 +140,11 @@ export function computeRating(
   for (const key of SCORING_KEYS) {
     const raw = stats[key];
     const value = typeof raw === 'number' ? raw : raw ? 1 : 0;
-    score += contribution(key, value) * weightFor(position, key);
+    score += contribution(key, value) * weightFor(role, key);
   }
 
   // Un portero que no recibe goles pero apenas interviene no debe salir premiado en exceso.
-  if (position === Pos.Goalkeeper && stats.saves === 0 && !stats.cleanSheet) {
+  if (roleGroup(role) === Pos.Goalkeeper && stats.saves === 0 && !stats.cleanSheet) {
     score -= 0.25;
   }
 

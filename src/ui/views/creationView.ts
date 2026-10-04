@@ -1,6 +1,13 @@
 import { COUNTRIES } from '../../data/continents';
 import { bottomTierOf } from '../../data/leagues';
-import { Foot, Position } from '../../models';
+import {
+  DEFAULT_ROLE_BY_POSITION,
+  Foot,
+  PlayerRole,
+  Position,
+  ROLE_LABELS,
+  rolesOfGroup,
+} from '../../models';
 import type { PlayerCreationInput } from '../../services/playerFactory';
 import { careerService } from '../../services/careerService';
 import { el, replace } from '../dom';
@@ -18,7 +25,8 @@ const POSITIONS: readonly { id: Position; label: string; hint: string }[] = [
 
 /** Vista de creación de carrera. */
 export const creationView: ViewFactory = (ctx: ViewContext) => {
-  let position: Position = Position.Midfielder;
+  let group: Position = Position.Midfielder;
+  let role: PlayerRole = DEFAULT_ROLE_BY_POSITION[group];
 
   const firstNameInput = el('input', { type: 'text', placeholder: 'Ej. Marcos', value: '' });
   const lastNameInput = el('input', { type: 'text', placeholder: 'Ej. Vega Ruiz', value: '' });
@@ -56,7 +64,8 @@ export const creationView: ViewFactory = (ctx: ViewContext) => {
     firstName: firstNameInput.value,
     lastName: lastNameInput.value,
     countryCode: countrySelect.value,
-    position,
+    position: group,
+    role,
     number: Number(numberInput.value) || 10,
     foot: footSelect.value as Foot,
   });
@@ -72,6 +81,27 @@ export const creationView: ViewFactory = (ctx: ViewContext) => {
   updateDebutInfo();
   picker.refresh(currentInput());
 
+  const roleRow = el('div', { class: 'position-picker' });
+  const renderRoles = (): void => {
+    replace(
+      roleRow,
+      ...rolesOfGroup(group).map((option) =>
+        el('button', {
+          class: `position-option${option === role ? ' is-selected' : ''}`,
+          type: 'button',
+          text: ROLE_LABELS[option],
+          on: {
+            click: () => {
+              role = option;
+              renderRoles();
+              picker.refresh(currentInput());
+            },
+          },
+        }),
+      ),
+    );
+  };
+
   const positionRow = el('div', { class: 'position-picker' });
   const renderPositions = (): void => {
     replace(
@@ -80,12 +110,14 @@ export const creationView: ViewFactory = (ctx: ViewContext) => {
         el(
           'button',
           {
-            class: `position-option${option.id === position ? ' is-selected' : ''}`,
+            class: `position-option${option.id === group ? ' is-selected' : ''}`,
             type: 'button',
             on: {
               click: () => {
-                position = option.id;
+                group = option.id;
+                role = DEFAULT_ROLE_BY_POSITION[group];
                 renderPositions();
+                renderRoles();
                 picker.refresh(currentInput());
               },
             },
@@ -97,6 +129,7 @@ export const creationView: ViewFactory = (ctx: ViewContext) => {
     );
   };
   renderPositions();
+  renderRoles();
 
   const startButton = el('button', {
     class: 'btn btn--primary',
@@ -202,6 +235,12 @@ export const creationView: ViewFactory = (ctx: ViewContext) => {
             { class: 'field' },
             el('span', { class: 'field__label', text: 'Posición' }),
             positionRow,
+          ),
+          el(
+            'div',
+            { class: 'field' },
+            el('span', { class: 'field__label', text: 'Subposición' }),
+            roleRow,
           ),
           debutInfo,
           el(
