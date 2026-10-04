@@ -119,6 +119,8 @@ export interface CareerState {
   lastMatch: MatchResult | null;
   /** Últimos resultados del usuario (para la vista de calendario). */
   recentResults: MatchResult[];
+  /** Calendario de la temporada en curso (partidos del equipo del usuario). */
+  seasonCalendar: SeasonCalendarEntry[];
   /** Número de temporadas jugadas, usado para récords. */
   seasonsPlayed: number;
   /** Posición final del equipo en la temporada anterior. */
@@ -141,6 +143,25 @@ export interface RoundSummary {
   userFixture: MatchResult | null;
   goalsScoredElsewhere: number;
   messages: InboxMessage[];
+}
+
+/** Entrada del calendario de una temporada: un partido del equipo del usuario. */
+export interface SeasonCalendarEntry {
+  /** Índice de la tanda dentro del calendario de la temporada. */
+  tick: number;
+  date: GameDate;
+  kind: 'league' | 'cup' | 'continental' | 'national';
+  competitionId: string;
+  competitionName: string;
+  /** Ronda o jornada del partido dentro de su competición. */
+  round: number;
+  /** Equipo con el que disputó el partido (club o primer equipo en convocatoria). */
+  userTeamId: string;
+  homeId: string;
+  awayId: string;
+  played: boolean;
+  homeGoals: number | null;
+  awayGoals: number | null;
 }
 
 /** Resultado del cierre de temporada. */

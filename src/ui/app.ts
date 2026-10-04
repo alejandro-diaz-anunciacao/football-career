@@ -9,6 +9,7 @@ import { savesView } from './views/savesView';
 import { dashboardView } from './views/dashboardView';
 import { matchView } from './views/matchView';
 import { squadView } from './views/squadView';
+import { calendarView } from './views/calendarView';
 import { tableView } from './views/tableView';
 import { competitionsView } from './views/competitionsView';
 import { nationalView } from './views/nationalView';
@@ -23,6 +24,7 @@ const FACTORIES: Record<RouteId, ViewFactory> = {
   dashboard: dashboardView,
   match: matchView,
   squad: squadView,
+  calendar: calendarView,
   table: tableView,
   competitions: competitionsView,
   national: nationalView,

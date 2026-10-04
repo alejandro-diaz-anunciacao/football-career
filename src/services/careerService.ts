@@ -10,6 +10,7 @@ import {
   PlayerRole,
   SeasonPhase,
   SquadRole,
+  TacticalApproach,
   addStats,
   averageRating,
   emptySeasonStats,
@@ -21,15 +22,16 @@ import type {
   EventResolutionSummary,
   Fixture,
   League,
+  MatchOutcome,
   MatchResult,
   NationalTeam,
   Player,
   RoundSummary,
+  SeasonCalendarEntry,
   SeasonHistory,
   SeasonSummary,
   SquadMember,
   StandingRow,
-  TacticalApproach,
   Team,
   TransferOffer,
   Trophy,
@@ -538,6 +540,60 @@ function squadComparison(scope: 'club' | 'national'): SquadComparison | null {
   };
 }
 
+/* --------------------------------------------------------------- Calendario */
+
+/** Entradas de liga del calendario de la temporada en curso del usuario. */
+function buildSeasonCalendar(): SeasonCalendarEntry[] {
+  const current = state;
+  const league = currentLeague();
+  if (!current || !league) return [];
+
+  const schedule = buildSeasonSchedule(current.season);
+  const entries: SeasonCalendarEntry[] = [];
+  for (const fixture of league.fixtures) {
+    if (fixture.homeId !== current.teamId && fixture.awayId !== current.teamId) continue;
+    const tickIndex = schedule.findIndex((tick) => tick.kind === 'league' && tick.round === fixture.round);
+    if (tickIndex < 0) continue;
+    entries.push({
+      tick: tickIndex,
+      date: schedule[tickIndex].date,
+      kind: 'league',
+      competitionId: league.id,
+      competitionName: league.name,
+      round: fixture.round,
+      userTeamId: current.teamId,
+      homeId: fixture.homeId,
+      awayId: fixture.awayId,
+      played: fixture.played,
+      homeGoals: fixture.homeGoals,
+      awayGoals: fixture.awayGoals,
+    });
+  }
+  return entries;
+}
+
+/** Registra o actualiza en el calendario el partido del usuario de una tanda. */
+function upsertCalendarEntry(context: NextUserFixture, result: MatchResult): void {
+  const current = requireState();
+  const entry: SeasonCalendarEntry = {
+    tick: context.tickIndex,
+    date: context.date,
+    kind: context.kind,
+    competitionId: context.competitionId,
+    competitionName: context.competitionName,
+    round: context.fixture.round,
+    userTeamId: context.userTeamId,
+    homeId: context.fixture.homeId,
+    awayId: context.fixture.awayId,
+    played: true,
+    homeGoals: result.homeGoals,
+    awayGoals: result.awayGoals,
+  };
+  const index = current.seasonCalendar.findIndex((item) => item.tick === context.tickIndex);
+  if (index >= 0) current.seasonCalendar[index] = entry;
+  else current.seasonCalendar.push(entry);
+}
+
 /* ------------------------------------------------- Selección nacional */
 
 /** Selección nacional del jugador. */
@@ -802,6 +858,7 @@ function buildCareer(
     offers: [],
     lastMatch: null,
     recentResults: [],
+    seasonCalendar: [],
     seasonsPlayed: 0,
     previousFinish: null,
     pendingEvent: null,
@@ -812,6 +869,7 @@ function buildCareer(
   };
 
   buildNationalSeason(1);
+  state.seasonCalendar = buildSeasonCalendar();
 
   const country = findCountry(input.countryCode);
   pushMessage(
@@ -1361,10 +1419,13 @@ function commitUserMatch(result: MatchResult | null): RoundSummary {
   const tick = schedule[current.tick];
   const round = current.currentRound;
   const knownIds = new Set(current.inbox.map((message) => message.id));
+  // Contexto del partido antes de avanzar la tanda (para el calendario).
+  const context = nextUserFixture();
 
   if (result) {
     applyUserMatch(result);
   }
+  if (result && context) upsertCalendarEntry(context, result);
 
   let goalsScoredElsewhere = 0;
   if (tick && tick.kind === 'league') {
@@ -1613,6 +1674,81 @@ function skipToNextMatch(): void {
     commitUserMatch(null);
     guard += 1;
   }
+}
+
+/** Partido del calendario listo para pintar en la vista. */
+export interface CalendarDay {
+  tick: number;
+  date: GameDate;
+  kind: 'league' | 'cup' | 'continental' | 'national';
+  competitionName: string;
+  label: string;
+  opponentName: string;
+  home: boolean;
+  played: boolean;
+  userGoals: number | null;
+  rivalGoals: number | null;
+  outcome: MatchOutcome | null;
+  isNext: boolean;
+}
+
+/** Calendario de la temporada en curso con los partidos del equipo del usuario. */
+function seasonCalendar(): CalendarDay[] {
+  const current = state;
+  if (!current) return [];
+
+  const entries = [...current.seasonCalendar].sort((a, b) => a.tick - b.tick);
+  const nextTick = entries.find((entry) => !entry.played)?.tick ?? -1;
+
+  return entries.map((entry) => {
+    const home = entry.homeId === entry.userTeamId;
+    const opponentId = home ? entry.awayId : entry.homeId;
+    const userGoals = home ? entry.homeGoals : entry.awayGoals;
+    const rivalGoals = home ? entry.awayGoals : entry.homeGoals;
+    const outcome: MatchOutcome | null =
+      entry.played && userGoals !== null && rivalGoals !== null
+        ? userGoals > rivalGoals
+          ? 'win'
+          : userGoals === rivalGoals
+            ? 'draw'
+            : 'loss'
+        : null;
+
+    return {
+      tick: entry.tick,
+      date: entry.date,
+      kind: entry.kind,
+      competitionName: entry.competitionName,
+      label: entry.kind === 'league' ? `Jornada ${entry.round}` : `${entry.competitionName} · Ronda ${entry.round}`,
+      opponentName: teamFor(opponentId)?.name ?? opponentId,
+      home,
+      played: entry.played,
+      userGoals,
+      rivalGoals,
+      outcome,
+      isNext: !entry.played && entry.tick === nextTick,
+    };
+  });
+}
+
+/**
+ * Simula en rápido todas las tandas hasta la indicada (inclusive): tus partidos
+ * con quick-sim y el resto del mundo normalmente. Se detiene si aparece un evento
+ * pendiente o si la temporada se cierra.
+ */
+function simulateUntil(targetTick: number): void {
+  const current = requireState();
+  const schedule = buildSeasonSchedule(current.season);
+  const target = Math.max(current.tick, Math.min(targetTick, schedule.length - 1));
+  let guard = 0;
+
+  while (current.tick <= target && !isSeasonClosed() && !current.pendingEvent && guard < schedule.length + 2) {
+    if (nextUserFixture()) simulateUserMatchQuick(TacticalApproach.Balanced);
+    else commitUserMatch(null);
+    guard += 1;
+  }
+
+  persist();
 }
 
 /** ¿Ha terminado la temporada? (se han consumido todas las tandas). */
@@ -1900,6 +2036,7 @@ function finishSeason(): SeasonSummary {
 
   current.competitions = nextCompetitions;
   buildNationalSeason(current.season);
+  current.seasonCalendar = buildSeasonCalendar();
 
   // Cantera: si el primer equipo ya te quería, te espera la decisión de ascenso.
   if (currentTeam()?.parentTeamId) {
@@ -2155,6 +2292,8 @@ export const careerService = {
   createUserMatch,
   commitUserMatch,
   simulateUserMatchQuick,
+  seasonCalendar,
+  simulateUntil,
   skipToNextMatch,
   finishSeason,
   acceptOffer,

@@ -699,6 +699,11 @@ export const dashboardView: ViewFactory = (ctx: ViewContext) => {
         }),
         el('button', {
           class: 'btn btn--ghost',
+          text: '📅 Calendario',
+          on: { click: () => ctx.navigate('calendar') },
+        }),
+        el('button', {
+          class: 'btn btn--ghost',
           text: 'Guardar partida',
           title: `Último guardado ${fmtRelativeTime(state.savedAt)}`,
           on: {

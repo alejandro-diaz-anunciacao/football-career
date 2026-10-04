@@ -1,6 +1,6 @@
 import { CONFIG } from '../data/config';
 import { DEFAULT_ROLE_BY_POSITION, SquadRole, emptySeasonGrowth, emptySeasonStats } from '../models';
-import type { CareerState, Fixture, League, Player, PlayerRole, Position } from '../models';
+import type { CareerState, Fixture, League, Player, PlayerRole, Position, SeasonCalendarEntry } from '../models';
 import { DEFAULT_FOCUS } from '../engine/progressionEngine';
 import { roundDate } from '../engine/calendar';
 import { buildSeasonSchedule } from '../engine/schedule';
@@ -66,6 +66,36 @@ function unpackState(raw: unknown): CareerState {
   }
 
   return { ...(raw as CareerState), leagues };
+}
+
+/** Reconstruye el calendario de liga de una partida antigua sin `seasonCalendar`. */
+function leagueCalendarOf(state: CareerState): SeasonCalendarEntry[] {
+  const team = state.teams[state.teamId];
+  const league = team ? state.leagues[team.leagueId] : undefined;
+  if (!team || !league) return [];
+
+  const schedule = buildSeasonSchedule(state.season);
+  const entries: SeasonCalendarEntry[] = [];
+  for (const fixture of league.fixtures) {
+    if (fixture.homeId !== team.id && fixture.awayId !== team.id) continue;
+    const tick = schedule.findIndex((item) => item.kind === 'league' && item.round === fixture.round);
+    if (tick < 0) continue;
+    entries.push({
+      tick,
+      date: roundDate(state.season, fixture.round),
+      kind: 'league',
+      competitionId: league.id,
+      competitionName: league.name,
+      round: fixture.round,
+      userTeamId: team.id,
+      homeId: fixture.homeId,
+      awayId: fixture.awayId,
+      played: fixture.played,
+      homeGoals: fixture.homeGoals,
+      awayGoals: fixture.awayGoals,
+    });
+  }
+  return entries;
 }
 
 /**
@@ -364,6 +394,10 @@ export const storageService = {
     }
 
     // Eventos aleatorios: las partidas antiguas no los tenían.
+    if (!Array.isArray(migrated.seasonCalendar) || migrated.seasonCalendar.length === 0) {
+      migrated.seasonCalendar = leagueCalendarOf(migrated);
+    }
+
     migrated.pendingEvent = migrated.pendingEvent ?? null;
     migrated.lastEventRound = migrated.lastEventRound ?? 0;
     migrated.eventsThisSeason = migrated.eventsThisSeason ?? 0;

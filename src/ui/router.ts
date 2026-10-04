@@ -7,6 +7,7 @@ export type RouteId =
   | 'dashboard'
   | 'match'
   | 'squad'
+  | 'calendar'
   | 'table'
   | 'competitions'
   | 'national'
@@ -28,6 +29,7 @@ const VALID: readonly RouteId[] = [
   'dashboard',
   'match',
   'squad',
+  'calendar',
   'table',
   'competitions',
   'national',

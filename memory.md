@@ -23,8 +23,9 @@ liga) repartidos en 5 continentes y 13 países. Incluye partido interactivo minu
 a minuto, progresión con potencial oculto, mercado de fichajes, copas y continentales,
 selecciones nacionales, **eventos aleatorios de carrera** con decisiones, **15
 subposiciones** (grupo + rol específico), **equipos filiales con ascenso al primer
-equipo** por rendimiento, **vista de plantilla con comparación por el puesto** y
-guardado de hasta 12 partidas simultáneas.
+equipo** por rendimiento, **vista de plantilla con comparación por el puesto**,
+**calendario de temporada con simulación hasta una fecha** y guardado de hasta 12
+partidas simultáneas.
 
 - **Stack:** Vanilla TypeScript estricto + Vite. Sin frameworks, sin runtime de UI.
 - **Dependencias de producción:** ninguna. Solo `devDependencies`:
@@ -150,7 +151,7 @@ acordarlo.
   `player.rolePenalty`, `player.role`, `player.callUp`, `player.firstTeamTrust`,
   `calendar`, `competitions`, `nationalCompetitions`,
   `friendlies`, `tick`, `pendingEvent`, `lastEventRound`, `eventsThisSeason`,
-  `eventHistory`, `lastEventResult`) y normaliza `TransferOffer.kind`/`projectedRole` y los campos de
+  `eventHistory`, `lastEventResult`, `seasonCalendar`) y normaliza `TransferOffer.kind`/`projectedRole` y los campos de
   las `Competition` (`format`/`stage`/`tier`/`mainEntrants`); además actualiza
   `version`. Al añadir un campo a `Player` o `CareerState`, **añádelo también
   aquí**. `tick` se deriva de `currentRound` en partidas antiguas.
@@ -329,7 +330,8 @@ acordarlo.
   teams, **competitions**, **nationalCompetitions**, friendlies, history, trophies,
   inbox, offers, lastMatch, recentResults, seasonsPlayed, previousFinish,
   **pendingEvent**, **lastEventRound**, **eventsThisSeason**, **eventHistory**,
-  **lastEventResult**).
+  **lastEventResult**, **seasonCalendar** (`SeasonCalendarEntry[]`, partidos del
+  usuario de la temporada)).
 - **Enums string**: `Position`, `Foot`, `Continent`, `SquadRole`, `MatchEventType`,
   `SeasonPhase`, `MessageKind`, `TacticalApproach`. Tipos: `MatchOutcome`, `TeamSide`.
 
@@ -342,7 +344,7 @@ acordarlo.
 | `ratingEngine.ts` | `computeRating` (1.0-10.0 ponderada por posición y resultado), `ratingLabel`, `ratingTone`. |
 | `roleEngine.ts` | `projectRole(player, team, squad?)`: rol (`Starter`/`Bench`/`NotCalled`) y minutos estimados. Banda de rotación amplia + bonus de promesa. **Competencia mezclada** subposición/grupo (`squadCompetitionLevel`) y `squadRivals(player, squad)` (mejor rival de rol y de grupo). Nivel por subposición (`estimatedRoleLevel`). **Fuente única del rol** (la usan `careerService` con plantilla real y el mercado con la media del club). |
 | `calendar.ts` | `roundDate(season, round)` y `windowForRound(round)`: fechas reales de cada jornada y ventana de fichajes activa. |
-| `schedule.ts` | `buildSeasonSchedule(season)`: lista de tandas (liga y copa entre semana) con su fecha. |
+| `schedule.ts` | `buildSeasonSchedule(season)`: lista de tandas (liga y copa entre semana) con su fecha. Alimenta el calendario (`seasonCalendar`) y `simulateUntil`. |
 | `cupEngine.ts` | `buildCup`/`buildCups`, `simulateCupTick`, `cupLegForTeam`, `buildBracketRound`, `countBracketRounds`: cuadro de eliminatoria (previa o exentos), ida/vuelta, resolución por agregado/penaltis. |
 | `groupEngine.ts` | `buildGroups` (bombos, cualquier tamaño de grupo), `buildLeaguePhase` (tabla única), `simulateGroupRound`, `groupQualifiers`, `groupRange`, `startKnockout`: grupos o fase de liga y salto a la eliminatoria. |
 | `continentalEngine.ts` | `buildContinentalCompetitions`, `buildMainStage`: clasificados por puesto de liga y campeón de copa, con previa (`qualifying`), secundarias en espera (`pending`) y reparto por continente. |
@@ -393,8 +395,9 @@ google-chrome --headless=new --disable-gpu --no-sandbox --remote-debugging-port=
 ## 9. UI y estilos
 
 - **Enrutador por hash** propio (`ui/router.ts`): rutas tipadas `creation`, `saves`,
-  `dashboard`, `match`, `squad`, `table`, `competitions`, `national`, `history`, `market`.
-  Soporta query params; `parseHash` cae a `dashboard` si la ruta no es válida.
+  `dashboard`, `match`, `squad`, `calendar`, `table`, `competitions`, `national`,
+  `history`, `market`. Soporta query params; `parseHash` cae a `dashboard` si la ruta
+  no es válida.
 - **Vista de selección** (`nationalView`): nación, convocatoria, estadísticas
   internacionales y clasificación/torneos de selecciones.
 - **Vista de competiciones** (`competitionsView`): selector de copa y cuadro de
@@ -409,6 +412,11 @@ google-chrome --headless=new --disable-gpu --no-sandbox --remote-debugging-port=
   selección con la valoración (OVR) de cada jugador, resalta tu ficha y al rival del
   puesto, y compara tus 7 atributos con él (`squadComparison`). Se accede desde la
   cabecera y con «Ver plantilla» en el vestuario.
+- **Calendario (`calendarView`, ruta `calendar`):** tus partidos de la temporada
+  agrupados por mes, con competición, rival, resultado (V/E/D) y el próximo resaltado.
+  Cada fecha futura tiene «Simular hasta aquí» (con confirmación) que llama a
+  `careerService.simulateUntil(tick)`. Se accede desde la cabecera y con «Calendario»
+  en el vestuario.
 - **Eventos aleatorios en la UI:** el vestuario pinta una tarjeta de decisión
   (`eventCard`) con las opciones; al resolverla se abre un **modal de desenlace**
   (`showEventOutcome`) con la narrativa y los chips de consecuencias, y queda la
@@ -479,6 +487,11 @@ google-chrome --headless=new --disable-gpu --no-sandbox --remote-debugging-port=
 - ⚠️ Con `player.callUp` activo, `userFixtureAt` devuelve la jornada del padre y
   `applyUserMatch` localiza el partido por `homeId/awayId/round`; no vuelvas a usar
   `current.teamId` para buscar la jornada.
+- ⚠️ **Calendario:** `seasonCalendar` se rellena con las 34 jornadas de liga al
+  arrancar temporada y hace **upsert** en cada `commitUserMatch` con partido (copa,
+  continental, selección y convocatorias). `simulateUntil` quick-simula hasta la
+  tanda elegida y **se detiene** si hay `pendingEvent` o cierra la temporada; la UI
+  debe avisar de que tus partidos se juegan en rápido.
 
 ## 11. Mapa de archivos
 
@@ -500,6 +513,6 @@ src/
 └── ui/
     ├── app.ts, router.ts, dom.ts
     ├── components/             # card, header, statBar, matchLog, modal, toast, tabs, debutPicker
-    └── views/                  # creation, saves, dashboard, match, squad, table, competitions,
-                                # national, history, market, types
+    └── views/                  # creation, saves, dashboard, match, squad, calendar, table,
+                                # competitions, national, history, market, types
 ```
